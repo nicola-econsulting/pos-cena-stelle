@@ -5,11 +5,13 @@
 const COLS = 32;
 const COLS_DOUBLE = 16; // double-width halves the columns
 
-// CP858 mapping for the non-ASCII chars we need (Italian accents + €)
+// CP858 mapping for the non-ASCII chars we need (Italian accents).
+// NOTE: the Bisofice prints garbage for CP858's € (0xD5) — accents are fine,
+// so it's really on CP437. We print a plain 'E' for € instead (same width).
 const CP858 = {
   'à': 0x85, 'è': 0x8A, 'é': 0x82, 'ì': 0x8D, 'ò': 0x95, 'ù': 0x97,
   'À': 0xB7, 'È': 0xD4, 'É': 0x90, 'Ì': 0xDE, 'Ò': 0xE3, 'Ù': 0xEB,
-  '€': 0xD5, '°': 0xF8, 'ç': 0x87, 'ü': 0x81, 'ö': 0x94
+  '€': 0x45, '°': 0xF8, 'ç': 0x87, 'ü': 0x81, 'ö': 0x94
 };
 
 function encodeCP858(text) {
@@ -79,7 +81,19 @@ function orderTicketLayout(order) {
   L.push({ text: hr() });
   L.push({ text: '>> RITIRA AL BAR <<', center: true, bold: true });
   L.push({ text: 'Grazie!', center: true });
+  L.push(...sponsorFooter());
   return L;
+}
+
+// Credit footer — work donated to the parish by Ermilani Consulting
+function sponsorFooter() {
+  return [
+    { text: hr() },
+    { text: 'Cassa offerta da', center: true },
+    { text: 'ERMILANI CONSULTING S.R.L.', center: true, bold: true },
+    { text: 'Boutique Data Agency', center: true },
+    { text: 'ermilaniconsulting.com', center: true }
+  ];
 }
 
 function reportTicketLayout(report) {
@@ -100,7 +114,7 @@ function reportTicketLayout(report) {
   }
   L.push({ text: hr() });
   L.push({ text: padLine('TOTALE', '€ ' + money(report.total), COLS_DOUBLE), double: true, bold: true });
-  L.push({ text: hr() });
+  L.push(...sponsorFooter());
   return L;
 }
 

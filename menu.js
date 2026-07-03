@@ -9,7 +9,7 @@ const MENU = {
     ]},
     { "name": "Birra", "items": [
       { "key": "birra_bionda",   "name": "Birra Bionda",     "price": 3.50 },
-      { "key": "caraffa_birra",  "name": "Caraffa Birra",    "price": 10.00 }
+      { "key": "caraffa_birra",  "name": "Caraffa Birra",    "price": 15.00 }
     ]},
     { "name": "Vino", "items": [
       { "key": "vino",           "name": "Vino",             "price": 1.50 },

@@ -218,9 +218,14 @@ async function printOrder(order) {
 
 // ---------- print error banner / Ristampa ----------
 
-function showPrintError(msg) {
+function showPrintError(msg, withRistampa) {
   $('print-error-text').textContent = msg;
+  $('btn-ristampa').classList.toggle('hidden', withRistampa === false);
   $('print-error').classList.remove('hidden');
+}
+
+function errText(e) {
+  return (e && (e.message || e.name)) || String(e);
 }
 function hidePrintError() {
   $('print-error').classList.add('hidden');
@@ -393,11 +398,12 @@ $('btn-select-printer').addEventListener('click', async () => {
   if (!Printer.available) { toast('Bluetooth non disponibile: uso stampa browser'); return; }
   try {
     await Printer.selectAndConnect();
+    hidePrintError();
     toast('Stampante connessa');
   } catch (e) {
     console.error(e);
-    if (e.name === 'NotFoundError') toast('Nessuna stampante selezionata');
-    else toast('Connessione fallita: ' + e.message, 6000);
+    if (e && e.name === 'NotFoundError') toast('Nessuna stampante selezionata');
+    else showPrintError('Connessione fallita — ' + errText(e), false);
   }
 });
 
@@ -466,11 +472,12 @@ $('btn-reconnect').addEventListener('click', async () => {
   if (!Printer.available) { toast('Bluetooth non disponibile in questo browser'); return; }
   try {
     await Printer.reconnect();
+    hidePrintError();
     toast('Stampante connessa');
   } catch (e) {
     console.error(e);
-    if (e.name === 'NotFoundError') toast('Nessuna stampante selezionata');
-    else toast('Connessione fallita: ' + e.message, 6000);
+    if (e && e.name === 'NotFoundError') toast('Nessuna stampante selezionata');
+    else showPrintError('Connessione fallita — ' + errText(e), false);
   }
 });
 

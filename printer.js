@@ -2,16 +2,28 @@
 // Cheap 58mm printers expose different GATT services; we declare the common
 // candidates and detect the writable characteristic at runtime.
 
+// Full 128-bit UUID strings: quirky Web Bluetooth stacks (Bluefy) may not
+// expand the 16-bit numeric shorthand, so spell everything out.
 const PRINTER_SERVICES = [
-  0x18F0,                                   // common thermal printer service (write 0x2AF1)
-  0xFFE0,                                   // HM-10 style (write 0xFFE1)
-  0xFF00,                                   // (write 0xFF02)
-  0xFF10,                                   // some Goojprt/POS-58 clones (write 0xFF11)
-  0xFEE7,                                   // some Chinese BLE modules
+  '000018f0-0000-1000-8000-00805f9b34fb',   // common thermal printer service (write 0x2AF1)
+  '0000ffe0-0000-1000-8000-00805f9b34fb',   // HM-10 style (write 0xFFE1)
+  '0000ff00-0000-1000-8000-00805f9b34fb',   // (write 0xFF02)
+  '0000ff10-0000-1000-8000-00805f9b34fb',   // some Goojprt/POS-58 clones (write 0xFF11)
+  '0000fee7-0000-1000-8000-00805f9b34fb',   // some Chinese BLE modules
   '6e400001-b5a3-f393-e0a9-e50e24dcca9e',   // Nordic UART (write ...0002...)
   '49535343-fe7d-4ae5-8fa9-9fafd205e455',   // ISSC/Microchip transparent UART (very common on 58mm printers)
   'e7810a71-73ae-499d-8c15-faa9aef0c3f2'    // "BlueTooth Printer" generic module
 ];
+
+// Robust error → text (Bluefy sometimes rejects with message-less objects)
+function bleErrorText(e, stage) {
+  let detail = '';
+  if (e) {
+    detail = e.message || e.name || (typeof e === 'string' ? e : '');
+    if (!detail) { try { detail = JSON.stringify(e); } catch (_) { detail = String(e); } }
+  }
+  return stage + (detail ? ': ' + detail : ': errore sconosciuto');
+}
 
 const CHUNK_SIZE = 120;   // bytes per GATT write (stay under typical MTU)
 const CHUNK_DELAY = 40;   // ms between writes — cheap printers need breathing room
@@ -37,10 +49,17 @@ const Printer = {
 
   // Show the browser device picker and connect
   async selectAndConnect() {
-    const device = await navigator.bluetooth.requestDevice({
-      acceptAllDevices: true,
-      optionalServices: PRINTER_SERVICES
-    });
+    let device;
+    try {
+      device = await navigator.bluetooth.requestDevice({
+        acceptAllDevices: true,
+        optionalServices: PRINTER_SERVICES
+      });
+    } catch (e) {
+      if (e && e.name === 'NotFoundError') throw e;   // user cancelled the picker
+      throw new Error(bleErrorText(e, 'Selezione dispositivo fallita'));
+    }
+    if (!device) throw new Error('Selezione dispositivo fallita: nessun dispositivo');
     await this._connect(device);
   },
 
@@ -73,17 +92,24 @@ const Printer = {
 
   async _connect(device) {
     this.device = device;
-    device.removeEventListener('gattserverdisconnected', this._onDisconnect);
-    this._onDisconnect = () => { this.characteristic = null; this._notify(); };
-    device.addEventListener('gattserverdisconnected', this._onDisconnect);
+    try {
+      if (this._onDisconnect) device.removeEventListener('gattserverdisconnected', this._onDisconnect);
+      this._onDisconnect = () => { this.characteristic = null; this._notify(); };
+      device.addEventListener('gattserverdisconnected', this._onDisconnect);
+    } catch (e) { /* some stacks lack device event listeners — not fatal */ }
 
+    if (!device.gatt) throw new Error('Dispositivo senza interfaccia GATT (Bluetooth classico? Serve una stampante BLE)');
     let server;
     try {
       server = await device.gatt.connect();
     } catch (e) {
-      throw new Error('Collegamento Bluetooth fallito (stampante spenta o già collegata a un altro dispositivo?)');
+      throw new Error(bleErrorText(e, 'Collegamento GATT fallito (stampante spenta o già collegata a un altro dispositivo?)'));
     }
-    this.characteristic = await this._findWritableCharacteristic(server);
+    try {
+      this.characteristic = await this._findWritableCharacteristic(server);
+    } catch (e) {
+      throw new Error(bleErrorText(e, 'Ricerca servizi fallita'));
+    }
     if (!this.characteristic) {
       const found = this._lastFoundServices.length
         ? 'Servizi trovati: ' + this._lastFoundServices.join(', ')

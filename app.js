@@ -396,7 +396,8 @@ $('btn-select-printer').addEventListener('click', async () => {
     toast('Stampante connessa');
   } catch (e) {
     console.error(e);
-    toast('Connessione stampante annullata o fallita');
+    if (e.name === 'NotFoundError') toast('Nessuna stampante selezionata');
+    else toast('Connessione fallita: ' + e.message, 6000);
   }
 });
 
@@ -468,7 +469,8 @@ $('btn-reconnect').addEventListener('click', async () => {
     toast('Stampante connessa');
   } catch (e) {
     console.error(e);
-    toast('Riconnessione fallita: riprova');
+    if (e.name === 'NotFoundError') toast('Nessuna stampante selezionata');
+    else toast('Connessione fallita: ' + e.message, 6000);
   }
 });
 

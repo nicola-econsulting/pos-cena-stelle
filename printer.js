@@ -6,7 +6,11 @@ const PRINTER_SERVICES = [
   0x18F0,                                   // common thermal printer service (write 0x2AF1)
   0xFFE0,                                   // HM-10 style (write 0xFFE1)
   0xFF00,                                   // (write 0xFF02)
-  '6e400001-b5a3-f393-e0a9-e50e24dcca9e'    // Nordic UART (write ...0002...)
+  0xFF10,                                   // some Goojprt/POS-58 clones (write 0xFF11)
+  0xFEE7,                                   // some Chinese BLE modules
+  '6e400001-b5a3-f393-e0a9-e50e24dcca9e',   // Nordic UART (write ...0002...)
+  '49535343-fe7d-4ae5-8fa9-9fafd205e455',   // ISSC/Microchip transparent UART (very common on 58mm printers)
+  'e7810a71-73ae-499d-8c15-faa9aef0c3f2'    // "BlueTooth Printer" generic module
 ];
 
 const CHUNK_SIZE = 120;   // bytes per GATT write (stay under typical MTU)
@@ -73,14 +77,26 @@ const Printer = {
     this._onDisconnect = () => { this.characteristic = null; this._notify(); };
     device.addEventListener('gattserverdisconnected', this._onDisconnect);
 
-    const server = await device.gatt.connect();
+    let server;
+    try {
+      server = await device.gatt.connect();
+    } catch (e) {
+      throw new Error('Collegamento Bluetooth fallito (stampante spenta o già collegata a un altro dispositivo?)');
+    }
     this.characteristic = await this._findWritableCharacteristic(server);
     if (!this.characteristic) {
+      const found = this._lastFoundServices.length
+        ? 'Servizi trovati: ' + this._lastFoundServices.join(', ')
+        : 'Nessun servizio accessibile trovato';
       device.gatt.disconnect();
-      throw new Error('Nessuna caratteristica di scrittura trovata sulla stampante');
+      throw new Error('Stampante non compatibile con i servizi noti. ' + found);
     }
+    console.log('Printer connected. Service:', this.characteristic.service.uuid,
+                'characteristic:', this.characteristic.uuid);
     this._notify();
   },
+
+  _lastFoundServices: [],
 
   async _findWritableCharacteristic(server) {
     let services = [];
@@ -90,6 +106,7 @@ const Printer = {
         try { services.push(await server.getPrimaryService(uuid)); } catch (e) { /* not present */ }
       }
     }
+    this._lastFoundServices = services.map(s => s.uuid);
     let fallback = null;
     for (const service of services) {
       let chars = [];

@@ -504,7 +504,8 @@ async function init() {
   Printer.tryAutoReconnect();
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-    navigator.serviceWorker.register('sw.js').catch(() => { /* offline caching is best-effort */ });
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
+      .catch(() => { /* offline caching is best-effort */ });
   }
 
   // Warn before accidental page unload during service

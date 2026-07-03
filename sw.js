@@ -1,8 +1,7 @@
-// Cache-first service worker: precache all app files so the app can load
-// offline where the browser supports it (Bluefy caching is best-effort).
-// IMPORTANT: bump the version below on EVERY deploy, or returning browsers
-// keep serving the old cached files.
-const CACHE = 'pos-cena-stelle-v2';
+// Network-first service worker: with internet you always get fresh files
+// (no stale-cache surprises after a deploy); offline it falls back to the
+// last cached copy. Precache bypasses the HTTP cache ({cache:'reload'}).
+const CACHE = 'pos-cena-stelle-v3';
 const ASSETS = [
   './',
   './index.html',
@@ -18,7 +17,11 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  e.waitUntil(
+    caches.open(CACHE)
+      .then(c => c.addAll(ASSETS.map(u => new Request(u, { cache: 'reload' }))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', e => {
@@ -30,16 +33,19 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
+  if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;
   e.respondWith(
-    caches.match(e.request, { ignoreSearch: true }).then(cached =>
-      cached ||
-      fetch(e.request).then(resp => {
-        if (resp.ok && e.request.method === 'GET' && new URL(e.request.url).origin === location.origin) {
+    fetch(e.request)
+      .then(resp => {
+        if (resp.ok) {
           const copy = resp.clone();
           caches.open(CACHE).then(c => c.put(e.request, copy));
         }
         return resp;
       })
-    )
+      .catch(() =>
+        caches.match(e.request, { ignoreSearch: true })
+          .then(cached => cached || Promise.reject(new Error('offline, not cached')))
+      )
   );
 });

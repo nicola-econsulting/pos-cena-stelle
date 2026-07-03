@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0f172a">
+  <title>Cassa — Cena Sotto le Stelle</title>
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <header id="topbar">
+    <span id="event-name">Cena Sotto le Stelle</span>
+    <div id="printer-area">
+      <span id="printer-chip" class="chip disconnected">Stampante: Disconnessa</span>
+      <button id="btn-reconnect" class="btn btn-small">Riconnetti stampante</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- ============ CASSA ============ -->
+    <section id="view-cassa" class="view active">
+      <div id="menu-panel">
+        <div id="menu-grid"></div>
+      </div>
+      <div id="cart-panel">
+        <div id="cart-lines"></div>
+        <div id="cart-footer">
+          <div id="total-row">
+            <span>TOTALE</span>
+            <span id="cart-total">€ 0,00</span>
+          </div>
+          <div id="cart-actions">
+            <button id="btn-annulla" class="btn btn-danger">Annulla</button>
+            <button id="btn-stampa" class="btn btn-primary">Stampa comanda</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ ORDINI ============ -->
+    <section id="view-ordini" class="view">
+      <h2>Ordini della serata</h2>
+      <div id="orders-list"></div>
+    </section>
+
+    <!-- ============ REPORT ============ -->
+    <section id="view-report" class="view">
+      <h2>Report serata</h2>
+      <div id="report-summary"></div>
+      <div id="report-table"></div>
+      <div class="report-actions">
+        <button id="btn-export-csv" class="btn">Esporta CSV</button>
+        <button id="btn-export-json" class="btn">Esporta JSON</button>
+        <button id="btn-print-report" class="btn btn-primary">Stampa report</button>
+      </div>
+    </section>
+
+    <!-- ============ IMPOSTAZIONI ============ -->
+    <section id="view-impostazioni" class="view">
+      <h2>Impostazioni</h2>
+      <div class="settings-group">
+        <h3>Stampante</h3>
+        <button id="btn-select-printer" class="btn">Seleziona stampante</button>
+        <button id="btn-test-print" class="btn">Stampa di prova</button>
+      </div>
+      <div class="settings-group">
+        <h3>Opzioni</h3>
+        <label class="setting-row">
+          <span>Mostra "Cena al banco"</span>
+          <input type="checkbox" id="set-show-hidden">
+        </label>
+        <label class="setting-row">
+          <span>Calcolo del resto</span>
+          <input type="checkbox" id="set-change-calc">
+        </label>
+        <label class="setting-row">
+          <span>Copie comanda</span>
+          <select id="set-copies">
+            <option value="1">1</option>
+            <option value="2">2</option>
+          </select>
+        </label>
+      </div>
+      <div class="settings-group danger-zone">
+        <h3>Zona pericolosa</h3>
+        <button id="btn-reset" class="btn btn-danger">Azzera serata</button>
+        <p class="hint">Cancella tutti gli ordini e riparte dal n. 1. Da fare prima dell'evento.</p>
+      </div>
+    </section>
+  </main>
+
+  <nav id="tabbar">
+    <button class="tab active" data-view="cassa">Cassa</button>
+    <button class="tab" data-view="ordini">Ordini</button>
+    <button class="tab" data-view="report">Report</button>
+    <button class="tab" data-view="impostazioni">Impostazioni</button>
+  </nav>
+
+  <!-- ============ MODALS ============ -->
+
+  <!-- Payment / confirm -->
+  <div id="modal-payment" class="modal-backdrop hidden">
+    <div class="modal">
+      <h2>Conferma ordine</h2>
+      <div class="pay-total">TOTALE <span id="pay-total">€ 0,00</span></div>
+      <div id="pay-cash-section">
+        <label for="pay-cash">Contanti ricevuti (opzionale)</label>
+        <input type="number" id="pay-cash" inputmode="decimal" step="0.5" min="0" placeholder="0,00">
+        <div id="quick-cash">
+          <button class="btn btn-small" data-cash="5">5 €</button>
+          <button class="btn btn-small" data-cash="10">10 €</button>
+          <button class="btn btn-small" data-cash="20">20 €</button>
+          <button class="btn btn-small" data-cash="50">50 €</button>
+        </div>
+        <div id="pay-change" class="pay-change hidden">Resto: <span id="pay-change-value"></span></div>
+      </div>
+      <div class="modal-actions">
+        <button id="pay-cancel" class="btn">Indietro</button>
+        <button id="pay-confirm" class="btn btn-primary">Stampa comanda</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Order detail -->
+  <div id="modal-order" class="modal-backdrop hidden">
+    <div class="modal">
+      <h2 id="order-detail-title">Comanda</h2>
+      <div id="order-detail-body"></div>
+      <div class="modal-actions">
+        <button id="order-detail-close" class="btn">Chiudi</button>
+        <button id="order-detail-reprint" class="btn btn-primary">Ristampa</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Generic confirm -->
+  <div id="modal-confirm" class="modal-backdrop hidden">
+    <div class="modal">
+      <h2 id="confirm-title">Conferma</h2>
+      <p id="confirm-text"></p>
+      <input type="password" id="confirm-pin" inputmode="numeric" placeholder="PIN" class="hidden" autocomplete="off">
+      <div class="modal-actions">
+        <button id="confirm-no" class="btn">Annulla</button>
+        <button id="confirm-yes" class="btn btn-danger">Conferma</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Print error banner -->
+  <div id="print-error" class="banner hidden">
+    <span id="print-error-text">Errore di stampa. L'ordine è salvato.</span>
+    <button id="btn-ristampa" class="btn btn-small btn-primary">Ristampa</button>
+    <button id="btn-error-close" class="btn btn-small">Chiudi</button>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast hidden"></div>
+
+  <!-- window.print() fallback area (visible only when printing) -->
+  <pre id="print-fallback"></pre>
+
+  <script src="menu.js"></script>
+  <script src="db.js"></script>
+  <script src="escpos.js"></script>
+  <script src="printer.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

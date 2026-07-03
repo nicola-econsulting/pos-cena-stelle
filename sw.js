@@ -1,6 +1,8 @@
 // Cache-first service worker: precache all app files so the app can load
 // offline where the browser supports it (Bluefy caching is best-effort).
-const CACHE = 'pos-cena-stelle-v1';
+// IMPORTANT: bump the version below on EVERY deploy, or returning browsers
+// keep serving the old cached files.
+const CACHE = 'pos-cena-stelle-v2';
 const ASSETS = [
   './',
   './index.html',

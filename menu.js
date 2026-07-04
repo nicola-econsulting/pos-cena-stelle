@@ -15,6 +15,11 @@ const MENU = {
       { "key": "vino",           "name": "Vino",             "price": 1.50 },
       { "key": "caraffa_vino",   "name": "Caraffa Vino",     "price": 7.00 }
     ]},
+    { "name": "Sangria & Spritz", "items": [
+      { "key": "sangria",         "name": "Sangria",          "price": 3.50 },
+      { "key": "caraffa_sangria", "name": "Caraffa Sangria",  "price": 15.00 },
+      { "key": "spritz",          "name": "Spritz",           "price": 3.00 }
+    ]},
     { "name": "Bibite & Caffè", "items": [
       { "key": "bibita",         "name": "Coca / The / Fanta", "price": 3.00 },
       { "key": "caffe",          "name": "Caffè",            "price": 1.00 },

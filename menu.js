@@ -18,15 +18,22 @@ const MENU = {
   "currency": "€",
   "ticketBirra": { "key": "ticket_birra", "name": "Ticket Birra", "price": 4.00, "receiptTarget": "drinks" },
   "categories": [
-    // Placeholder items/prices — burgers aren't part of the current menu yet,
-    // real names/prices/ingredients to come later.
+    // From "Nero Vintage Cibo Hamburger Street Food Menù" (2-page PDF).
+    // Bond Burger's "o" choice (cipolla caramellata O cavolo cappuccio viola)
+    // is modelled as: both listed as removable ingredients, so whichever one
+    // isn't wanted gets removed — the customization engine doesn't have a
+    // dedicated "choose one of two" type.
     { "name": "Burger", "receiptTarget": "kitchen", "customizable": "burger", "items": [
-      { "key": "burger_classico", "name": "Burger Classico", "price": 7.00,
-        "ingredients": ["Insalata", "Pomodoro", "Cipolla", "Cheddar", "Bacon"] },
-      { "key": "burger_veg", "name": "Burger Veg", "price": 6.50,
-        "ingredients": ["Insalata", "Pomodoro", "Cipolla", "Formaggio"] },
-      { "key": "burger_doppio", "name": "Burger Doppio", "price": 9.00,
-        "ingredients": ["Insalata", "Pomodoro", "Cipolla", "Cheddar", "Bacon"] }
+      { "key": "contra_burger", "name": "Contra'Burger", "price": 8.00,
+        "ingredients": ["Cipolla Caramellata", "Peperoni", "Cheddar"] },
+      { "key": "cheeseburger", "name": "Cheeseburger", "price": 7.00,
+        "ingredients": ["Pomodoro", "Insalata", "Cheddar"] },
+      { "key": "easy_burger", "name": "Easy Burger", "price": 6.00,
+        "ingredients": ["Pomodoro", "Insalata"] },
+      { "key": "bond_burger", "name": "Bond Burger", "price": 8.00,
+        "ingredients": ["Cipolla Caramellata", "Cavolo Cappuccio Viola", "Cheddar"] },
+      { "key": "hot_dog", "name": "Hot Dog", "price": 6.00, "ingredients": [] },
+      { "key": "cicchetto_mare", "name": "Cicchetto di Mare", "price": 3.00, "ingredients": [] }
     ]},
     { "name": "Piatti", "receiptTarget": "kitchen", "items": [
       { "key": "maccheroni_anitra", "name": "Maccheroni all'Anitra", "price": 8.00 },

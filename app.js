@@ -510,13 +510,15 @@ async function completeOrder() {
 }
 
 // ---------- multi-station printing ----------
-// Kitchen items print on the shared 'kitchen' printer. Drinks and dolci each
-// print as their own ticket, but both go to THIS tablet's own 'station'
-// printer (there's no separate physical dolci printer). Print status is
-// tracked per receipt TYPE (kitchen/drinks/dolci), not per physical printer
-// role, since two receipt types can share one role.
+// Kitchen items print on the shared 'kitchen' printer, PLUS a copy on THIS
+// tablet's own 'station' printer — kept at the register so staff have proof
+// of what was ordered if a customer disputes it later. Drinks and dolci
+// each print as their own ticket, both on the 'station' printer too (there's
+// no separate physical dolci printer). Print status is tracked per receipt
+// TYPE (kitchen/kitchenCopy/drinks/dolci), not per physical printer role,
+// since several receipt types can share one role.
 
-const RECEIPT_ROLE = { kitchen: 'kitchen', drinks: 'station', dolci: 'station' };
+const RECEIPT_ROLE = { kitchen: 'kitchen', kitchenCopy: 'station', drinks: 'station', dolci: 'station' };
 
 function buildReceiptJobs(order) {
   const byTarget = { kitchen: [], drinks: [], dolci: [] };
@@ -528,6 +530,7 @@ function buildReceiptJobs(order) {
   const jobs = [];
   if (byTarget.kitchen.length) {
     jobs.push({ target: 'kitchen', role: RECEIPT_ROLE.kitchen, layout: kitchenTicketLayout(order, byTarget.kitchen), label: 'comanda cucina' });
+    jobs.push({ target: 'kitchenCopy', role: RECEIPT_ROLE.kitchenCopy, layout: kitchenTicketLayout(order, byTarget.kitchen), label: 'copia comanda cucina (cassa)' });
   }
   if (byTarget.drinks.length) {
     jobs.push({ target: 'drinks', role: RECEIPT_ROLE.drinks, layout: drinksTicketLayout(order, byTarget.drinks), label: 'scontrino bibite' });

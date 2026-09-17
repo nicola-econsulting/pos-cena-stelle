@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#0F2E2B">
-  <title>Cassa — Cena Sotto le Stelle</title>
+  <title>Cassa</title>
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="manifest" href="manifest.webmanifest">
@@ -17,10 +17,12 @@
 <body>
 
   <header id="topbar">
-    <span id="event-name">Cena Sotto le Stelle</span>
+    <span id="event-name">Evento</span>
     <div id="printer-area">
-      <span id="printer-chip" class="chip disconnected">Stampante: Disconnessa</span>
-      <button id="btn-reconnect" class="btn btn-small">Riconnetti stampante</button>
+      <span id="printer-chip-kitchen" class="chip disconnected">Cucina: Disconnessa</span>
+      <button class="btn btn-small btn-reconnect" data-role="kitchen">Riconnetti</button>
+      <span id="printer-chip-station" class="chip disconnected">Questa cassa: Disconnessa</span>
+      <button class="btn btn-small btn-reconnect" data-role="station">Riconnetti</button>
     </div>
   </header>
 
@@ -28,6 +30,12 @@
     <!-- ============ CASSA ============ -->
     <section id="view-cassa" class="view active">
       <div id="menu-panel">
+        <div id="menu-toolbar">
+          <button id="btn-menu-back" class="btn btn-small hidden">‹ Indietro</button>
+          <span id="menu-breadcrumb"></span>
+          <button id="btn-ticket-birra" class="btn btn-primary hidden">🍺 Ticket Birra</button>
+          <button id="btn-view-all" class="btn btn-small">Vedi tutto il menu</button>
+        </div>
         <div id="menu-grid"></div>
       </div>
       <div id="cart-panel">
@@ -67,15 +75,43 @@
     <section id="view-impostazioni" class="view">
       <h2>Impostazioni</h2>
       <div class="settings-group">
-        <h3>Stampante</h3>
-        <button id="btn-select-printer" class="btn">Seleziona stampante</button>
-        <button id="btn-test-print" class="btn">Stampa di prova</button>
+        <h3>Stampanti</h3>
+        <div class="printer-setting-row">
+          <span>Cucina (condivisa con l'altra cassa)</span>
+          <button class="btn btn-small btn-select-printer" data-role="kitchen" data-conn="ble">Seleziona (Bluetooth)</button>
+          <button class="btn btn-small btn-select-printer" data-role="kitchen" data-conn="usb">Seleziona (USB)</button>
+          <button class="btn btn-small btn-test-print" data-role="kitchen">Prova</button>
+        </div>
+        <div class="printer-setting-row">
+          <span>Questa cassa (bibite/dolci)</span>
+          <button class="btn btn-small btn-select-printer" data-role="station" data-conn="ble">Seleziona (Bluetooth)</button>
+          <button class="btn btn-small btn-select-printer" data-role="station" data-conn="usb">Seleziona (USB)</button>
+          <button class="btn btn-small btn-test-print" data-role="station">Prova</button>
+        </div>
+        <p class="hint">Ogni tablet ha le proprie impostazioni: la stampante "Cucina" va selezionata separatamente su ciascun tablet. Scegli Bluetooth o USB a seconda di come è collegata la stampante.</p>
+      </div>
+      <div class="settings-group">
+        <h3>Menu — aggiungi voce</h3>
+        <label class="setting-row">
+          <span>Categoria</span>
+          <select id="add-item-category"></select>
+        </label>
+        <label class="setting-row">
+          <span>Nome</span>
+          <input type="text" id="add-item-name" placeholder="Es. Panino al salame">
+        </label>
+        <label class="setting-row">
+          <span>Prezzo</span>
+          <input type="number" id="add-item-price" inputmode="decimal" step="0.5" min="0" placeholder="0,00">
+        </label>
+        <button id="btn-add-item" class="btn btn-primary">Aggiungi voce</button>
+        <div id="custom-items-list"></div>
       </div>
       <div class="settings-group">
         <h3>Opzioni</h3>
         <label class="setting-row">
-          <span>Mostra "Cena al banco"</span>
-          <input type="checkbox" id="set-show-hidden">
+          <span>Modalità serata birra (Ticket Birra)</span>
+          <input type="checkbox" id="set-event-mode">
         </label>
         <label class="setting-row">
           <span>Calcolo del resto</span>
@@ -111,6 +147,11 @@
     <div class="modal">
       <h2>Conferma ordine</h2>
       <div class="pay-total">TOTALE <span id="pay-total">€ 0,00</span></div>
+      <div id="pay-disc-section" class="hidden">
+        <label for="pay-disc">Numero dischetto (prendilo dalla torre)</label>
+        <input type="text" id="pay-disc" inputmode="numeric" placeholder="Es. 12" maxlength="10">
+        <div id="pay-disc-error" class="field-error hidden">Inserisci il numero del dischetto dato al cliente</div>
+      </div>
       <div id="pay-cash-section">
         <label for="pay-cash">Contanti ricevuti (opzionale)</label>
         <input type="number" id="pay-cash" inputmode="decimal" step="0.5" min="0" placeholder="0,00">
@@ -125,6 +166,18 @@
       <div class="modal-actions">
         <button id="pay-cancel" class="btn">Indietro</button>
         <button id="pay-confirm" class="btn btn-primary">Stampa comanda</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Product customization (burger ingredients/add-ons, patatine fritte sauce) -->
+  <div id="modal-customize" class="modal-backdrop hidden">
+    <div class="modal">
+      <h2 id="customize-title">Personalizza</h2>
+      <div id="customize-body"></div>
+      <div class="modal-actions">
+        <button id="customize-cancel" class="btn">Annulla</button>
+        <button id="customize-confirm" class="btn btn-primary">Aggiungi</button>
       </div>
     </div>
   </div>

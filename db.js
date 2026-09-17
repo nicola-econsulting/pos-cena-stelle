@@ -3,10 +3,18 @@ const DB_NAME = 'pos-cena-stelle';
 const DB_VERSION = 1;
 
 const DEFAULT_SETTINGS = {
-  showHidden: false,   // "Cena al banco" category
   changeCalc: true,    // show "Contanti ricevuti" / "Resto"
   copies: 1,           // ticket copies (1 or 2)
-  pin: '1234'          // light PIN for Settings / reset
+  pin: '1234',         // light PIN for Settings / reset
+  eventMode: false,    // "serata birra": show Ticket Birra button instead of classic beers
+  customItems: [],     // items added from Impostazioni: [{ key, name, price, category }]
+  // Device ids remembered per printer role, so auto-reconnect knows which
+  // physical printer to hand each role — see PRINTER_ROLES in printer.js.
+  // Each id is prefixed by transport, "ble:..." or "usb:...", since a role
+  // can be connected over either. Each tablet has its own settings (no
+  // shared backend), so this is per-tablet: 'kitchen' = shared kitchen
+  // printer, 'station' = this tablet's own printer.
+  printerDevices: { kitchen: null, station: null }
 };
 
 let _db = null;

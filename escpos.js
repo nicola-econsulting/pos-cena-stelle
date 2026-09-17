@@ -59,6 +59,22 @@ function formatOrderNumber(n) {
   return String(n).padStart(4, '0');
 }
 
+// --- customization text (also used by the cart UI, see app.js) ---
+
+// order-line customization → lines to print under the item (e.g. "SENZA cipolla")
+function customizationLines(cz) {
+  if (!cz) return [];
+  const lines = [];
+  if (cz.removed && cz.removed.length) {
+    for (const ing of cz.removed) lines.push(`   SENZA ${ing}`);
+  }
+  if (cz.addons && cz.addons.length) {
+    for (const ad of cz.addons) lines.push(`   + ${ad}`);
+  }
+  if (cz.sauce) lines.push(`   Salsa: ${cz.sauce}`);
+  return lines;
+}
+
 // --- layout builders ---
 // op: { text, center: bool, double: bool, bold: bool }
 
@@ -71,6 +87,7 @@ function orderTicketLayout(order) {
   L.push({ text: hr() });
   for (const it of order.items) {
     L.push({ text: padLine(`${it.qty}x ${it.name}`, money(it.lineTotal)) });
+    for (const line of customizationLines(it.customization)) L.push({ text: line });
   }
   L.push({ text: hr() });
   L.push({ text: padLine('TOTALE', '€ ' + money(order.total), COLS_DOUBLE), double: true, bold: true });
@@ -83,6 +100,53 @@ function orderTicketLayout(order) {
   L.push({ text: 'Grazie!', center: true });
   L.push(...sponsorFooter());
   return L;
+}
+
+// Kitchen ticket: food items only, with the disc number and any customizations.
+// No prices/total — this is a kitchen slip, not a customer receipt.
+function kitchenTicketLayout(order, items) {
+  const L = [];
+  L.push({ text: MENU.event.toUpperCase(), center: true, bold: true });
+  L.push({ text: hr() });
+  L.push({ text: 'CUCINA', center: true, bold: true });
+  // The disc number is whatever the cashier read off the physical disc
+  // handed to the customer — print it verbatim, no zero-padding/reformatting,
+  // so it matches the disc exactly.
+  L.push({ text: `DISCHETTO N. ${order.discNumber || '?'}`, center: true, double: true });
+  L.push({ text: formatDateTime(order.createdAt), center: true });
+  L.push({ text: hr() });
+  for (const it of items) {
+    L.push({ text: `${it.qty}x ${it.name}`, bold: true });
+    for (const line of customizationLines(it.customization)) L.push({ text: line });
+  }
+  L.push({ text: hr() });
+  L.push({ text: `>> CHIAMARE N. ${order.discNumber || '?'} <<`, center: true, bold: true });
+  return L;
+}
+
+// Station ticket (drinks or dolci): item list + line totals, no disc number,
+// no kitchen-style customization notes (these categories aren't customizable).
+function stationTicketLayout(order, items, title) {
+  const L = [];
+  L.push({ text: MENU.event.toUpperCase(), center: true, bold: true });
+  L.push({ text: hr() });
+  L.push({ text: title, center: true, bold: true });
+  L.push({ text: `ORDINE N. ${formatOrderNumber(order.number)}`, center: true });
+  L.push({ text: formatDateTime(order.createdAt), center: true });
+  L.push({ text: hr() });
+  for (const it of items) {
+    L.push({ text: padLine(`${it.qty}x ${it.name}`, money(it.lineTotal)) });
+  }
+  L.push({ text: hr() });
+  return L;
+}
+
+function drinksTicketLayout(order, items) {
+  return stationTicketLayout(order, items, 'BIBITE / CAFFÈ');
+}
+
+function dolciTicketLayout(order, items) {
+  return stationTicketLayout(order, items, 'DOLCI');
 }
 
 // Credit footer — work donated to the parish by Ermilani Consulting
@@ -118,11 +182,12 @@ function reportTicketLayout(report) {
   return L;
 }
 
-function testTicketLayout() {
+function testTicketLayout(roleLabel) {
   return [
     { text: MENU.event.toUpperCase(), center: true, bold: true },
     { text: hr() },
     { text: 'PROVA STAMPA', center: true, double: true },
+    { text: roleLabel || '', center: true, bold: true },
     { text: formatDateTime(new Date().toISOString()), center: true },
     { text: hr() },
     { text: padLine('1x Caffè', money(1.00)) },

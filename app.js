@@ -1,17 +1,88 @@
-// App logic: views, cart, payment, print/complete flow, orders log,
-// report/export, settings. UI text Italian, code English.
+// App logic: views, cart, customization, payment, multi-station print/complete
+// flow, orders log, report/export, settings. UI text Italian, code English.
 
 let settings = null;
-let cart = [];            // [{ itemKey, name, unitPrice, qty }]
+let cart = [];            // [{ lineId, itemKey, name, unitPrice, qty, customization }]
 let lastFailedOrderId = null;
 let settingsUnlocked = false;
 
+// menu drill-down navigation state
+let drillPath = [];       // [] = macro tiles, [macro] = sub tiles or items, [macro, sub] = items
+let viewAllMode = false;
+
 const $ = id => document.getElementById(id);
 
-// Lookup: itemKey → { item, category }
+// ---------- menu item index (flattens categories + subcategories + Ticket Birra) ----------
+
 const ITEM_INDEX = {};
-for (const cat of MENU.categories) {
-  for (const item of cat.items) ITEM_INDEX[item.key] = { item, category: cat.name };
+
+function indexItem(item, categoryName, receiptTarget, customizableType, ingredients) {
+  ITEM_INDEX[item.key] = { item, categoryName, receiptTarget, customizableType, ingredients: ingredients || null };
+}
+
+// Rebuilds the flat lookup from MENU.categories — called at load, and again
+// after merging any custom items added from Impostazioni (see applyCustomItems).
+function rebuildItemIndex() {
+  for (const key of Object.keys(ITEM_INDEX)) delete ITEM_INDEX[key];
+  for (const cat of MENU.categories) {
+    if (cat.items) {
+      for (const item of cat.items) {
+        const type = cat.customizable || item.customizable || null;
+        indexItem(item, cat.name, cat.receiptTarget, type, type === 'burger' ? item.ingredients : null);
+      }
+    }
+    if (cat.subcategories) {
+      for (const sub of cat.subcategories) {
+        for (const item of sub.items) {
+          const type = item.customizable || null;
+          indexItem(item, `${cat.name} — ${sub.name}`, cat.receiptTarget, type, null);
+        }
+      }
+    }
+  }
+  indexItem(MENU.ticketBirra, 'Ticket Birra', MENU.ticketBirra.receiptTarget, null);
+}
+rebuildItemIndex();
+
+// ---------- custom menu items (added from Impostazioni, persisted in settings.customItems) ----------
+// Only top-level categories (those with a plain `items` array, not subcategories)
+// are offered as a target, keeping the add-item UI to a single category picker.
+
+function addableCategories() {
+  return MENU.categories.filter(c => !!c.items);
+}
+
+// Merge settings.customItems into MENU.categories (idempotent by key), so
+// rendering/ordering/printing all see them exactly like built-in items.
+function applyCustomItems(customItems) {
+  for (const custom of (customItems || [])) {
+    const cat = MENU.categories.find(c => c.name === custom.category && c.items);
+    if (!cat) continue;
+    if (!cat.items.some(it => it.key === custom.key)) {
+      cat.items.push({ key: custom.key, name: custom.name, price: custom.price });
+    }
+  }
+}
+
+function removeCustomItemFromMenu(key) {
+  for (const cat of MENU.categories) {
+    if (!cat.items) continue;
+    const i = cat.items.findIndex(it => it.key === key);
+    if (i !== -1) { cat.items.splice(i, 1); return; }
+  }
+}
+
+// Flat { name, items } list across categories/subcategories, for report/export
+function flattenCategories() {
+  const out = [];
+  for (const cat of MENU.categories) {
+    if (cat.items) out.push({ name: cat.name, items: cat.items });
+    if (cat.subcategories) {
+      for (const sub of cat.subcategories) out.push({ name: `${cat.name} — ${sub.name}`, items: sub.items });
+    }
+  }
+  out.push({ name: 'Ticket Birra', items: [MENU.ticketBirra] });
+  return out;
 }
 
 function fmtEuro(n) { return MENU.currency + ' ' + money(n); }
@@ -46,53 +117,262 @@ document.querySelectorAll('.tab').forEach(tab => {
   });
 });
 
-// ---------- menu grid ----------
+// ---------- menu grid (macro category drill-down + "vedi tutto" toggle) ----------
+
+function itemVisible(item) {
+  return !(item.classicBeer && settings.eventMode);
+}
+
+function itemButton(item) {
+  const btn = document.createElement('button');
+  btn.className = 'item-btn';
+  btn.innerHTML = `<span>${item.name}</span><span class="price">${fmtEuro(item.price)}</span>`;
+  btn.addEventListener('click', () => onItemTapped(item.key));
+  return btn;
+}
+
+function renderItemGrid(container, items) {
+  const grid = document.createElement('div');
+  grid.className = 'item-grid';
+  for (const item of items) {
+    if (!itemVisible(item)) continue;
+    grid.appendChild(itemButton(item));
+  }
+  container.appendChild(grid);
+}
+
+function tile(label, onClick) {
+  const btn = document.createElement('button');
+  btn.className = 'category-tile';
+  btn.textContent = label;
+  btn.addEventListener('click', onClick);
+  return btn;
+}
+
+function renderMacroTiles(container) {
+  const grid = document.createElement('div');
+  grid.className = 'category-tile-grid';
+  for (const cat of MENU.categories) {
+    grid.appendChild(tile(cat.name, () => { drillPath = [cat]; renderMenu(); }));
+  }
+  container.appendChild(grid);
+}
+
+function renderSubTiles(container, macro) {
+  const grid = document.createElement('div');
+  grid.className = 'category-tile-grid';
+  for (const sub of macro.subcategories) {
+    grid.appendChild(tile(sub.name, () => { drillPath = [macro, sub]; renderMenu(); }));
+  }
+  container.appendChild(grid);
+}
+
+function renderAllFlat(container) {
+  for (const group of flattenCategories()) {
+    const visibleItems = group.items.filter(itemVisible);
+    if (!visibleItems.length) continue;
+    const title = document.createElement('div');
+    title.className = 'category-title';
+    title.textContent = group.name;
+    container.appendChild(title);
+    renderItemGrid(container, visibleItems);
+  }
+}
+
+function updateBreadcrumb() {
+  const bc = $('menu-breadcrumb');
+  const backBtn = $('btn-menu-back');
+  if (viewAllMode || drillPath.length === 0) {
+    bc.textContent = viewAllMode ? 'Tutto il menu' : '';
+    backBtn.classList.add('hidden');
+    return;
+  }
+  bc.textContent = drillPath.map(c => c.name).join(' › ');
+  backBtn.classList.remove('hidden');
+}
 
 function renderMenu() {
   const grid = $('menu-grid');
   grid.innerHTML = '';
-  for (const cat of MENU.categories) {
-    if (cat.hidden && !settings.showHidden) continue;
-    const title = document.createElement('div');
-    title.className = 'category-title';
-    title.textContent = cat.name;
-    grid.appendChild(title);
+  updateBreadcrumb();
+  $('btn-ticket-birra').classList.toggle('hidden', !settings.eventMode);
 
-    const items = document.createElement('div');
-    items.className = 'item-grid';
-    for (const item of cat.items) {
-      const btn = document.createElement('button');
-      btn.className = 'item-btn';
-      btn.innerHTML = `<span>${item.name}</span><span class="price">${fmtEuro(item.price)}</span>`;
-      btn.addEventListener('click', () => addToCart(item.key));
-      items.appendChild(btn);
-    }
-    grid.appendChild(items);
+  if (viewAllMode) { renderAllFlat(grid); return; }
+
+  if (drillPath.length === 0) { renderMacroTiles(grid); return; }
+
+  const macro = drillPath[0];
+  if (drillPath.length === 1) {
+    if (macro.subcategories) renderSubTiles(grid, macro);
+    else renderItemGrid(grid, macro.items);
+    return;
   }
+  renderItemGrid(grid, drillPath[1].items);
 }
+
+$('btn-menu-back').addEventListener('click', () => { drillPath.pop(); renderMenu(); });
+
+$('btn-view-all').addEventListener('click', () => {
+  viewAllMode = !viewAllMode;
+  drillPath = [];
+  $('btn-view-all').classList.toggle('active', viewAllMode);
+  $('btn-view-all').textContent = viewAllMode ? 'Vista categorie' : 'Vedi tutto il menu';
+  renderMenu();
+});
+
+$('btn-ticket-birra').addEventListener('click', () => addToCart(MENU.ticketBirra.key, null));
+
+// ---------- product customization (burger ingredients/add-ons, patatine fritte sauce) ----------
+
+function onItemTapped(itemKey) {
+  const entry = ITEM_INDEX[itemKey];
+  if (entry.customizableType === 'burger') openCustomizeBurger(itemKey);
+  else if (entry.customizableType === 'fries') openCustomizeFries(itemKey);
+  else addToCart(itemKey, null);
+}
+
+function openCustomizeBurger(itemKey) {
+  const entry = ITEM_INDEX[itemKey];
+  $('customize-title').textContent = entry.item.name;
+  const body = $('customize-body');
+  body.innerHTML = '';
+
+  const ingLabel = document.createElement('div');
+  ingLabel.className = 'customize-section-label';
+  ingLabel.textContent = 'Ingredienti (− per togliere)';
+  body.appendChild(ingLabel);
+
+  for (const ing of entry.ingredients) {
+    body.appendChild(customizeToggleRow('ingredient', ing, true));
+  }
+
+  const addonLabel = document.createElement('div');
+  addonLabel.className = 'customize-section-label';
+  addonLabel.textContent = 'Aggiunte (+ per aggiungere)';
+  body.appendChild(addonLabel);
+
+  for (const addon of BURGER_ADDONS) {
+    body.appendChild(customizeToggleRow('addon', addon, false));
+  }
+
+  $('modal-customize').classList.remove('hidden');
+  $('customize-confirm').onclick = () => {
+    const removed = [];
+    const addons = [];
+    body.querySelectorAll('.customize-toggle-row[data-kind="ingredient"]').forEach(row => { if (row.dataset.active === 'false') removed.push(row.dataset.value); });
+    body.querySelectorAll('.customize-toggle-row[data-kind="addon"]').forEach(row => { if (row.dataset.active === 'true') addons.push(row.dataset.value); });
+    const customization = (removed.length || addons.length) ? { removed, addons } : null;
+    $('modal-customize').classList.add('hidden');
+    addToCart(itemKey, customization);
+  };
+}
+
+// A row with a name and a single − / + toggle button.
+// `kind` = 'ingredient' (starts active/included, − removes it) or
+// 'addon' (starts inactive/not-added, + adds it). Tapping the button flips
+// `active` and swaps the button's symbol and styling to match.
+function customizeToggleRow(kind, value, active) {
+  const row = document.createElement('div');
+  row.className = 'customize-toggle-row';
+  row.dataset.kind = kind;
+  row.dataset.value = value;
+  row.dataset.active = String(active);
+  row.innerHTML = `<span class="cz-name">${value}</span><button type="button" class="cz-toggle-btn"></button>`;
+
+  const btn = row.querySelector('.cz-toggle-btn');
+  const applyState = () => {
+    const isActive = row.dataset.active === 'true';
+    // ingredient: active = included (show − to remove); inactive = removed (show + to re-add)
+    // addon: active = added (show − to remove); inactive = not added (show + to add)
+    // Button color follows the symbol, not the section: + is always orange, − is always neutral.
+    btn.textContent = isActive ? '−' : '+';
+    btn.classList.toggle('cz-btn-plus', !isActive);
+    btn.classList.toggle('cz-btn-minus', isActive);
+    row.classList.toggle('cz-removed', kind === 'ingredient' && !isActive);
+    row.classList.toggle('cz-added', kind === 'addon' && isActive);
+  };
+  btn.addEventListener('click', () => {
+    row.dataset.active = String(row.dataset.active !== 'true');
+    applyState();
+  });
+  applyState();
+  return row;
+}
+
+function openCustomizeFries(itemKey) {
+  const entry = ITEM_INDEX[itemKey];
+  $('customize-title').textContent = entry.item.name;
+  const body = $('customize-body');
+  body.innerHTML = '';
+
+  const label = document.createElement('div');
+  label.className = 'customize-section-label';
+  label.textContent = 'Salsa (opzionale)';
+  body.appendChild(label);
+
+  const noneRow = document.createElement('label');
+  noneRow.className = 'customize-row';
+  noneRow.innerHTML = `<input type="radio" name="sauce" value="" checked><span>Nessuna salsa</span>`;
+  body.appendChild(noneRow);
+
+  for (const sauce of FRIES_SAUCES) {
+    const row = document.createElement('label');
+    row.className = 'customize-row';
+    row.innerHTML = `<input type="radio" name="sauce" value="${sauce}"><span>${sauce}</span>`;
+    body.appendChild(row);
+  }
+
+  $('modal-customize').classList.remove('hidden');
+  $('customize-confirm').onclick = () => {
+    const checked = body.querySelector('input[name="sauce"]:checked');
+    const sauce = checked && checked.value ? checked.value : null;
+    $('modal-customize').classList.add('hidden');
+    addToCart(itemKey, sauce ? { sauce } : null);
+  };
+}
+
+$('customize-cancel').addEventListener('click', () => $('modal-customize').classList.add('hidden'));
 
 // ---------- cart ----------
 
-function addToCart(itemKey) {
-  const found = cart.find(l => l.itemKey === itemKey);
-  if (found) found.qty++;
+function customizationSignature(cz) {
+  if (!cz) return '';
+  const removed = (cz.removed || []).slice().sort().join(',');
+  const addons = (cz.addons || []).slice().sort().join(',');
+  const sauce = cz.sauce || '';
+  return `r:${removed}|a:${addons}|s:${sauce}`;
+}
+
+function customizationSummary(cz) {
+  if (!cz) return '';
+  const parts = [];
+  for (const ing of cz.removed || []) parts.push(`SENZA ${ing}`);
+  for (const ad of cz.addons || []) parts.push(`+ ${ad}`);
+  if (cz.sauce) parts.push(`Salsa: ${cz.sauce}`);
+  return parts.join(', ');
+}
+
+function addToCart(itemKey, customization) {
+  const lineId = itemKey + '::' + customizationSignature(customization);
+  const found = cart.find(l => l.lineId === lineId);
+  if (found) { found.qty++; }
   else {
     const { item } = ITEM_INDEX[itemKey];
-    cart.push({ itemKey, name: item.name, unitPrice: item.price, qty: 1 });
+    cart.push({ lineId, itemKey, name: item.name, unitPrice: item.price, qty: 1, customization: customization || null });
   }
   renderCart();
 }
 
-function changeQty(itemKey, delta) {
-  const line = cart.find(l => l.itemKey === itemKey);
+function changeQty(lineId, delta) {
+  const line = cart.find(l => l.lineId === lineId);
   if (!line) return;
   line.qty += delta;
   if (line.qty <= 0) cart = cart.filter(l => l !== line);
   renderCart();
 }
 
-function removeLine(itemKey) {
-  cart = cart.filter(l => l.itemKey !== itemKey);
+function removeLine(lineId) {
+  cart = cart.filter(l => l.lineId !== lineId);
   renderCart();
 }
 
@@ -109,8 +389,9 @@ function renderCart() {
   for (const line of cart) {
     const row = document.createElement('div');
     row.className = 'cart-line';
+    const summary = customizationSummary(line.customization);
     row.innerHTML = `
-      <span class="name">${line.name}</span>
+      <span class="name">${line.name}${summary ? `<br><small class="cz-summary">${summary}</small>` : ''}</span>
       <span class="stepper">
         <button class="minus">−</button>
         <span class="qty">${line.qty}</span>
@@ -118,9 +399,9 @@ function renderCart() {
       </span>
       <span class="line-total">${money(line.unitPrice * line.qty)}</span>
       <button class="remove">×</button>`;
-    row.querySelector('.minus').addEventListener('click', () => changeQty(line.itemKey, -1));
-    row.querySelector('.plus').addEventListener('click', () => changeQty(line.itemKey, +1));
-    row.querySelector('.remove').addEventListener('click', () => removeLine(line.itemKey));
+    row.querySelector('.minus').addEventListener('click', () => changeQty(line.lineId, -1));
+    row.querySelector('.plus').addEventListener('click', () => changeQty(line.lineId, +1));
+    row.querySelector('.remove').addEventListener('click', () => removeLine(line.lineId));
     el.appendChild(row);
   }
   $('cart-total').textContent = fmtEuro(cartTotal());
@@ -135,16 +416,29 @@ $('btn-annulla').addEventListener('click', async () => {
 
 // ---------- payment modal ----------
 
+function cartHasKitchenItems() {
+  return cart.some(l => ITEM_INDEX[l.itemKey].receiptTarget === 'kitchen');
+}
+
 $('btn-stampa').addEventListener('click', () => {
   if (!cart.length) return;
   $('pay-total').textContent = fmtEuro(cartTotal());
   $('pay-cash').value = '';
   $('pay-change').classList.add('hidden');
   $('pay-cash-section').classList.toggle('hidden', !settings.changeCalc);
+  $('pay-disc').value = '';
+  $('pay-disc').classList.remove('field-invalid');
+  $('pay-disc-error').classList.add('hidden');
+  $('pay-disc-section').classList.toggle('hidden', !cartHasKitchenItems());
   $('modal-payment').classList.remove('hidden');
 });
 
 $('pay-cancel').addEventListener('click', () => $('modal-payment').classList.add('hidden'));
+
+$('pay-disc').addEventListener('input', () => {
+  $('pay-disc').classList.remove('field-invalid');
+  $('pay-disc-error').classList.add('hidden');
+});
 
 $('pay-cash').addEventListener('input', updateChange);
 document.querySelectorAll('#quick-cash button').forEach(btn => {
@@ -169,6 +463,15 @@ $('pay-confirm').addEventListener('click', completeOrder);
 // ---------- complete order (save first, then print — never lose an order) ----------
 
 async function completeOrder() {
+  const needsDisc = cartHasKitchenItems();
+  const discNumber = $('pay-disc').value.trim();
+  if (needsDisc && !discNumber) {
+    $('pay-disc').classList.add('field-invalid');
+    $('pay-disc-error').classList.remove('hidden');
+    $('pay-disc').focus();
+    return;
+  }
+
   const btn = $('pay-confirm');
   btn.disabled = true;
   try {
@@ -180,14 +483,18 @@ async function completeOrder() {
     const order = {
       id: Date.now() + '-' + number,
       number,
+      discNumber: needsDisc ? discNumber : null,
       createdAt: new Date().toISOString(),
       total,
       cashReceived,
       changeDue: cashReceived != null ? +(cashReceived - total).toFixed(2) : null,
       status: 'saved',
+      printStatus: {},
       items: cart.map(l => ({
         itemKey: l.itemKey, name: l.name, unitPrice: l.unitPrice,
-        qty: l.qty, lineTotal: +(l.unitPrice * l.qty).toFixed(2)
+        qty: l.qty, lineTotal: +(l.unitPrice * l.qty).toFixed(2),
+        customization: l.customization || null,
+        receiptTarget: ITEM_INDEX[l.itemKey].receiptTarget
       }))
     };
     await saveOrder(order);
@@ -196,23 +503,80 @@ async function completeOrder() {
     cart = [];
     renderCart();
 
-    await printOrder(order);
+    await printOrderReceipts(order, false);
   } finally {
     btn.disabled = false;
   }
 }
 
-async function printOrder(order) {
-  try {
-    await Printer.printLayout(orderTicketLayout(order), settings.copies);
-    order.status = 'printed';
-    await saveOrder(order);
-    hidePrintError();
-    toast(`Comanda n. ${formatOrderNumber(order.number)} stampata`);
-  } catch (e) {
-    console.error('Print failed:', e);
+// ---------- multi-station printing ----------
+// Kitchen items print on the shared 'kitchen' printer. Drinks and dolci each
+// print as their own ticket, but both go to THIS tablet's own 'station'
+// printer (there's no separate physical dolci printer). Print status is
+// tracked per receipt TYPE (kitchen/drinks/dolci), not per physical printer
+// role, since two receipt types can share one role.
+
+const RECEIPT_ROLE = { kitchen: 'kitchen', drinks: 'station', dolci: 'station' };
+
+function buildReceiptJobs(order) {
+  const byTarget = { kitchen: [], drinks: [], dolci: [] };
+  // Older saved orders (from before this menu had receipt routing) lack
+  // `receiptTarget` on their lines — fall back to the drinks ticket so a
+  // reprint never crashes on stale data.
+  for (const it of order.items) (byTarget[it.receiptTarget] || byTarget.drinks).push(it);
+
+  const jobs = [];
+  if (byTarget.kitchen.length) {
+    jobs.push({ target: 'kitchen', role: RECEIPT_ROLE.kitchen, layout: kitchenTicketLayout(order, byTarget.kitchen), label: 'comanda cucina' });
+  }
+  if (byTarget.drinks.length) {
+    jobs.push({ target: 'drinks', role: RECEIPT_ROLE.drinks, layout: drinksTicketLayout(order, byTarget.drinks), label: 'scontrino bibite' });
+  }
+  if (byTarget.dolci.length) {
+    jobs.push({ target: 'dolci', role: RECEIPT_ROLE.dolci, layout: dolciTicketLayout(order, byTarget.dolci), label: 'scontrino dolci' });
+  }
+  return jobs;
+}
+
+// onlyFailed = true → retry just the jobs that didn't print yet (used by the
+// inline error banner's Ristampa); false → reprint every applicable receipt
+// (used by the Ordini list's explicit Ristampa on an already-saved order).
+async function printOrderReceipts(order, onlyFailed) {
+  let jobs = buildReceiptJobs(order);
+  if (onlyFailed) jobs = jobs.filter(j => order.printStatus[j.target] !== 'printed');
+
+  let anyError = null;
+  let prevRole = null;   // tracks the last SUCCESSFULLY printed job's role
+  for (const job of jobs) {
+    if (prevRole === job.role) {
+      // Same physical printer as the previous job, back to back — pause so
+      // whoever's at the register can tear the first ticket off before the
+      // next one starts (most of these printers have no auto-cutter).
+      if (Printer.onTearPause) Printer.onTearPause(job.role);
+      await new Promise(r => setTimeout(r, TEAR_PAUSE_MS));
+    }
+    try {
+      await Printer.printLayout(job.role, job.layout, settings.copies);
+      order.printStatus[job.target] = 'printed';
+      prevRole = job.role;
+    } catch (e) {
+      console.error(`Print failed [${job.target} → ${job.role}]:`, e);
+      order.printStatus[job.target] = 'failed';
+      anyError = anyError || e;
+      prevRole = null; // nothing actually printed — no ticket to tear before the next job
+    }
+  }
+  const allTargets = buildReceiptJobs(order).map(j => j.target);
+  order.status = allTargets.every(target => order.printStatus[target] === 'printed') ? 'printed' : 'partial';
+  await saveOrder(order);
+
+  if (anyError) {
     lastFailedOrderId = order.id;
-    showPrintError(`Errore di stampa comanda n. ${formatOrderNumber(order.number)}. L'ordine è salvato.`);
+    const failedLabels = jobs.filter(j => order.printStatus[j.target] !== 'printed').map(j => j.label).join(', ');
+    showPrintError(`Errore di stampa (${failedLabels || 'stampante'}) per l'ordine n. ${formatOrderNumber(order.number)}. L'ordine è salvato.`);
+  } else {
+    hidePrintError();
+    toast(`Ordine n. ${formatOrderNumber(order.number)} stampato`);
   }
 }
 
@@ -236,10 +600,7 @@ $('btn-ristampa').addEventListener('click', async () => {
   if (!lastFailedOrderId) return;
   const order = await getOrder(lastFailedOrderId);
   if (!order) return;
-  if (Printer.available && !Printer.connected) {
-    try { await Printer.reconnect(); } catch (e) { /* printOrder will surface the error */ }
-  }
-  await printOrder(order);
+  await printOrderReceipts(order, true);
 });
 
 // ---------- orders log ----------
@@ -260,6 +621,7 @@ async function renderOrders() {
     row.className = 'order-row';
     row.innerHTML = `
       <span class="num">N. ${formatOrderNumber(o.number)}</span>
+      ${o.discNumber ? `<span class="disc">🔔 ${o.discNumber}</span>` : ''}
       <span class="time">${time}</span>
       <span class="count">${count} pezzi</span>
       ${o.status !== 'printed' ? '<span class="badge">non stampata</span>' : ''}
@@ -270,15 +632,14 @@ async function renderOrders() {
 }
 
 function showOrderDetail(order) {
-  $('order-detail-title').textContent = `Comanda N. ${formatOrderNumber(order.number)}`;
+  $('order-detail-title').textContent = `Ordine N. ${formatOrderNumber(order.number)}`
+    + (order.discNumber ? ` — Dischetto ${order.discNumber}` : '');
   $('order-detail-body').innerHTML = `<pre>${layoutToText(orderTicketLayout(order))}</pre>`;
   $('modal-order').classList.remove('hidden');
   $('order-detail-reprint').onclick = async () => {
     $('modal-order').classList.add('hidden');
-    if (Printer.available && !Printer.connected) {
-      try { await Printer.reconnect(); } catch (e) { /* handled below */ }
-    }
-    await printOrder(order);
+    order.printStatus = order.printStatus || {};
+    await printOrderReceipts(order, false);
   };
 }
 $('order-detail-close').addEventListener('click', () => $('modal-order').classList.add('hidden'));
@@ -287,10 +648,10 @@ $('order-detail-close').addEventListener('click', () => $('modal-order').classLi
 
 async function buildReport() {
   const orders = await getAllOrders();
-  const categories = MENU.categories.map(cat => ({
-    name: cat.name,
+  const categories = flattenCategories().map(group => ({
+    name: group.name,
     qty: 0, revenue: 0,
-    items: cat.items.map(i => ({ key: i.key, name: i.name, qty: 0, revenue: 0 }))
+    items: group.items.map(i => ({ key: i.key, name: i.name, qty: 0, revenue: 0 }))
   }));
   const byKey = {};
   for (const c of categories) for (const i of c.items) byKey[i.key] = { item: i, cat: c };
@@ -347,11 +708,11 @@ function eventDateStamp() {
 
 $('btn-export-csv').addEventListener('click', async () => {
   const orders = await getAllOrders();
-  const rows = [['numero', 'orario', 'prodotto', 'quantita', 'prezzo_unitario', 'totale_riga', 'totale_ordine']];
+  const rows = [['numero', 'dischetto', 'orario', 'prodotto', 'personalizzazione', 'quantita', 'prezzo_unitario', 'totale_riga', 'totale_ordine']];
   for (const o of [...orders].sort((a, b) => a.number - b.number)) {
     for (const line of o.items) {
       rows.push([
-        formatOrderNumber(o.number), o.createdAt, `"${line.name}"`,
+        formatOrderNumber(o.number), o.discNumber || '', o.createdAt, `"${line.name}"`, `"${customizationSummary(line.customization)}"`,
         line.qty, line.unitPrice.toFixed(2), line.lineTotal.toFixed(2), o.total.toFixed(2)
       ]);
     }
@@ -369,7 +730,7 @@ $('btn-export-json').addEventListener('click', async () => {
 $('btn-print-report').addEventListener('click', async () => {
   const r = await buildReport();
   try {
-    await Printer.printLayout(reportTicketLayout(r), 1);
+    await Printer.printLayout('station', reportTicketLayout(r), 1);
     toast('Report stampato');
   } catch (e) {
     showPrintError('Errore di stampa del report.');
@@ -379,9 +740,11 @@ $('btn-print-report').addEventListener('click', async () => {
 // ---------- settings ----------
 
 function renderSettings() {
-  $('set-show-hidden').checked = settings.showHidden;
   $('set-change-calc').checked = settings.changeCalc;
   $('set-copies').value = String(settings.copies);
+  $('set-event-mode').checked = settings.eventMode;
+  renderAddItemCategories();
+  renderCustomItemsList();
 }
 
 async function updateSetting(key, value) {
@@ -390,30 +753,101 @@ async function updateSetting(key, value) {
   renderMenu();
 }
 
-$('set-show-hidden').addEventListener('change', e => updateSetting('showHidden', e.target.checked));
 $('set-change-calc').addEventListener('change', e => updateSetting('changeCalc', e.target.checked));
 $('set-copies').addEventListener('change', e => updateSetting('copies', parseInt(e.target.value, 10)));
+$('set-event-mode').addEventListener('change', e => updateSetting('eventMode', e.target.checked));
 
-$('btn-select-printer').addEventListener('click', async () => {
-  if (!Printer.available) { toast('Bluetooth non disponibile: uso stampa browser'); return; }
-  try {
-    await Printer.selectAndConnect();
-    hidePrintError();
-    toast('Stampante connessa');
-  } catch (e) {
-    console.error(e);
-    if (e && e.name === 'NotFoundError') toast('Nessuna stampante selezionata');
-    else showPrintError('Connessione fallita — ' + errText(e), false);
-  }
+// ---------- settings: add a menu item on the fly ----------
+
+function renderAddItemCategories() {
+  const sel = $('add-item-category');
+  const prev = sel.value;
+  sel.innerHTML = addableCategories().map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+  if (prev && addableCategories().some(c => c.name === prev)) sel.value = prev;
+}
+
+function renderCustomItemsList() {
+  const list = $('custom-items-list');
+  const items = settings.customItems || [];
+  if (!items.length) { list.innerHTML = ''; return; }
+  list.innerHTML = items.map(it => `
+    <div class="custom-item-row">
+      <span class="custom-item-name">${it.name}</span>
+      <span class="custom-item-cat">${it.category}</span>
+      <span>${fmtEuro(it.price)}</span>
+      <button class="btn-remove-item" data-key="${it.key}" title="Rimuovi">×</button>
+    </div>
+  `).join('');
+}
+
+$('btn-add-item').addEventListener('click', async () => {
+  const category = $('add-item-category').value;
+  const name = $('add-item-name').value.trim();
+  const price = parseFloat($('add-item-price').value);
+  if (!category) { toast('Nessuna categoria disponibile'); return; }
+  if (!name) { toast('Inserisci un nome'); return; }
+  if (!(price >= 0)) { toast('Inserisci un prezzo valido'); return; }
+
+  const item = {
+    key: 'custom_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    name, price, category
+  };
+  settings.customItems = settings.customItems || [];
+  settings.customItems.push(item);
+  await saveSettings(settings);
+  applyCustomItems([item]);
+  rebuildItemIndex();
+
+  $('add-item-name').value = '';
+  $('add-item-price').value = '';
+  renderCustomItemsList();
+  renderMenu();
+  toast('Voce aggiunta al menu');
 });
 
-$('btn-test-print').addEventListener('click', async () => {
-  try {
-    await Printer.printLayout(testTicketLayout(), 1);
-    toast('Prova stampata');
-  } catch (e) {
-    showPrintError('Errore di stampa di prova. Controlla la connessione.');
-  }
+$('custom-items-list').addEventListener('click', async e => {
+  const btn = e.target.closest('.btn-remove-item');
+  if (!btn) return;
+  const key = btn.dataset.key;
+  settings.customItems = (settings.customItems || []).filter(it => it.key !== key);
+  await saveSettings(settings);
+  removeCustomItemFromMenu(key);
+  rebuildItemIndex();
+  renderCustomItemsList();
+  renderMenu();
+  toast('Voce rimossa');
+});
+
+document.querySelectorAll('.btn-select-printer').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const role = btn.dataset.role;
+    const conn = btn.dataset.conn; // 'ble' | 'usb'
+    if (conn === 'usb' && !Printer.availableUSB) { toast('USB non disponibile in questo browser'); return; }
+    if (conn === 'ble' && !Printer.availableBLE) { toast('Bluetooth non disponibile: uso stampa browser'); return; }
+    try {
+      if (conn === 'usb') await Printer.selectAndConnectUSB(role);
+      else await Printer.selectAndConnect(role);
+      hidePrintError();
+      toast('Stampante connessa');
+    } catch (e) {
+      console.error(e);
+      if (e && e.name === 'NotFoundError') toast('Nessuna stampante selezionata');
+      else showPrintError('Connessione fallita — ' + errText(e), false);
+    }
+  });
+});
+
+document.querySelectorAll('.btn-test-print').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const role = btn.dataset.role;
+    const roleLabel = PRINTER_ROLES.find(r => r.id === role).label;
+    try {
+      await Printer.printLayout(role, testTicketLayout(roleLabel), 1);
+      toast('Prova stampata');
+    } catch (e) {
+      showPrintError('Errore di stampa di prova. Controlla la connessione.');
+    }
+  });
 });
 
 $('btn-reset').addEventListener('click', async () => {
@@ -460,25 +894,39 @@ function askConfirm(title, text, opts) {
   });
 }
 
-// ---------- printer status / reconnect ----------
+// ---------- printer status / reconnect (per role) ----------
 
-Printer.onStatusChange = connected => {
-  const chip = $('printer-chip');
-  chip.textContent = 'Stampante: ' + (connected ? 'Connessa' : 'Disconnessa');
+Printer.onStatusChange = (role, connected, name) => {
+  const chip = $('printer-chip-' + role);
+  if (!chip) return;
+  const label = PRINTER_ROLES.find(r => r.id === role).label;
+  chip.textContent = label + ': ' + (connected ? 'Connessa' : 'Disconnessa');
   chip.className = 'chip ' + (connected ? 'connected' : 'disconnected');
 };
 
-$('btn-reconnect').addEventListener('click', async () => {
-  if (!Printer.available) { toast('Bluetooth non disponibile in questo browser'); return; }
-  try {
-    await Printer.reconnect();
-    hidePrintError();
-    toast('Stampante connessa');
-  } catch (e) {
-    console.error(e);
-    if (e && e.name === 'NotFoundError') toast('Nessuna stampante selezionata');
-    else showPrintError('Connessione fallita — ' + errText(e), false);
-  }
+Printer.onDeviceSelected = (role, deviceId) => {
+  settings.printerDevices[role] = deviceId;
+  saveSettings(settings);
+};
+
+Printer.onTearPause = () => {
+  toast('Strappa lo scontrino prima del prossimo…', TEAR_PAUSE_MS);
+};
+
+document.querySelectorAll('.btn-reconnect').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const role = btn.dataset.role;
+    if (!Printer.available) { toast('Bluetooth/USB non disponibili in questo browser'); return; }
+    try {
+      await Printer.reconnect(role, settings.printerDevices[role]);
+      hidePrintError();
+      toast('Stampante connessa');
+    } catch (e) {
+      console.error(e);
+      if (e && e.name === 'NotFoundError') toast('Nessuna stampante selezionata');
+      else showPrintError('Connessione fallita — ' + errText(e), false);
+    }
+  });
 });
 
 // ---------- keep-awake ----------
@@ -507,10 +955,14 @@ async function keepAwake() {
 
 async function init() {
   settings = await getSettings();
+  applyCustomItems(settings.customItems);
+  rebuildItemIndex();
+  $('event-name').textContent = MENU.event;
+  document.title = 'Cassa — ' + MENU.event;
   renderMenu();
   renderCart();
   keepAwake();
-  Printer.tryAutoReconnect();
+  Printer.tryAutoReconnectAll(settings.printerDevices);
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })

@@ -1,7 +1,7 @@
 // Network-first service worker: with internet you always get fresh files
 // (no stale-cache surprises after a deploy); offline it falls back to the
 // last cached copy. Precache bypasses the HTTP cache ({cache:'reload'}).
-const CACHE = 'pos-cena-stelle-v3';
+const CACHE = 'pos-cena-stelle-v5';
 const ASSETS = [
   './',
   './index.html',

@@ -14,7 +14,11 @@ const DEFAULT_SETTINGS = {
   // can be connected over either. Each tablet has its own settings (no
   // shared backend), so this is per-tablet: 'kitchen' = shared kitchen
   // printer, 'station' = this tablet's own printer.
-  printerDevices: { kitchen: null, station: null }
+  printerDevices: { kitchen: null, station: null },
+  // Short per-tablet prefix (e.g. "A", "B"), prepended to order numbers so
+  // two tablets — each with their own independent counter — never print the
+  // same order number. Empty by default (single-tablet setups don't need it).
+  tabletLabel: ''
 };
 
 let _db = null;

@@ -55,8 +55,11 @@ function formatDateTime(iso) {
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}  ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-function formatOrderNumber(n) {
-  return String(n).padStart(4, '0');
+// `order` (not just the raw number) so the per-tablet label — set in
+// Impostazioni to stop two tablets' independent counters from printing the
+// same number — can be prefixed.
+function formatOrderNumber(order) {
+  return (order.tabletLabel || '') + String(order.number).padStart(4, '0');
 }
 
 // --- customization text (also used by the cart UI, see app.js) ---
@@ -82,7 +85,7 @@ function orderTicketLayout(order) {
   const L = [];
   L.push({ text: MENU.event.toUpperCase(), center: true, bold: true });
   L.push({ text: hr() });
-  L.push({ text: `COMANDA N. ${formatOrderNumber(order.number)}`, center: true, double: true });
+  L.push({ text: `COMANDA N. ${formatOrderNumber(order)}`, center: true, double: true });
   L.push({ text: formatDateTime(order.createdAt), center: true });
   L.push({ text: hr() });
   for (const it of order.items) {
@@ -104,11 +107,15 @@ function orderTicketLayout(order) {
 
 // Kitchen ticket: food items only, with the disc number and any customizations.
 // No prices/total — this is a kitchen slip, not a customer receipt.
-function kitchenTicketLayout(order, items) {
+// `isCopy` = the register's own backup copy (kept for dispute records, see
+// buildReceiptJobs in app.js): same items and disc number for reference, but
+// no "CHIAMARE N. X" call-out banner — that's an instruction for whoever's
+// working the kitchen pickup counter, not something the cassa copy needs.
+function kitchenTicketLayout(order, items, isCopy) {
   const L = [];
   L.push({ text: MENU.event.toUpperCase(), center: true, bold: true });
   L.push({ text: hr() });
-  L.push({ text: 'CUCINA', center: true, bold: true });
+  L.push({ text: isCopy ? 'CUCINA (copia cassa)' : 'CUCINA', center: true, bold: true });
   // The disc number is whatever the cashier read off the physical disc
   // handed to the customer — print it verbatim, no zero-padding/reformatting,
   // so it matches the disc exactly.
@@ -120,7 +127,9 @@ function kitchenTicketLayout(order, items) {
     for (const line of customizationLines(it.customization)) L.push({ text: line });
   }
   L.push({ text: hr() });
-  L.push({ text: `>> CHIAMARE N. ${order.discNumber || '?'} <<`, center: true, bold: true });
+  if (!isCopy) {
+    L.push({ text: `>> CHIAMARE N. ${order.discNumber || '?'} <<`, center: true, bold: true });
+  }
   return L;
 }
 
@@ -131,7 +140,7 @@ function stationTicketLayout(order, items, title) {
   L.push({ text: MENU.event.toUpperCase(), center: true, bold: true });
   L.push({ text: hr() });
   L.push({ text: title, center: true, bold: true });
-  L.push({ text: `ORDINE N. ${formatOrderNumber(order.number)}`, center: true });
+  L.push({ text: `ORDINE N. ${formatOrderNumber(order)}`, center: true });
   L.push({ text: formatDateTime(order.createdAt), center: true });
   L.push({ text: hr() });
   for (const it of items) {

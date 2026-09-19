@@ -483,6 +483,7 @@ async function completeOrder() {
     const order = {
       id: Date.now() + '-' + number,
       number,
+      tabletLabel: settings.tabletLabel || '',
       discNumber: needsDisc ? discNumber : null,
       createdAt: new Date().toISOString(),
       total,
@@ -530,7 +531,7 @@ function buildReceiptJobs(order) {
   const jobs = [];
   if (byTarget.kitchen.length) {
     jobs.push({ target: 'kitchen', role: RECEIPT_ROLE.kitchen, layout: kitchenTicketLayout(order, byTarget.kitchen), label: 'comanda cucina' });
-    jobs.push({ target: 'kitchenCopy', role: RECEIPT_ROLE.kitchenCopy, layout: kitchenTicketLayout(order, byTarget.kitchen), label: 'copia comanda cucina (cassa)' });
+    jobs.push({ target: 'kitchenCopy', role: RECEIPT_ROLE.kitchenCopy, layout: kitchenTicketLayout(order, byTarget.kitchen, true), label: 'copia comanda cucina (cassa)' });
   }
   if (byTarget.drinks.length) {
     jobs.push({ target: 'drinks', role: RECEIPT_ROLE.drinks, layout: drinksTicketLayout(order, byTarget.drinks), label: 'scontrino bibite' });
@@ -576,10 +577,10 @@ async function printOrderReceipts(order, onlyFailed) {
   if (anyError) {
     lastFailedOrderId = order.id;
     const failedLabels = jobs.filter(j => order.printStatus[j.target] !== 'printed').map(j => j.label).join(', ');
-    showPrintError(`Errore di stampa (${failedLabels || 'stampante'}) per l'ordine n. ${formatOrderNumber(order.number)}. L'ordine è salvato.`);
+    showPrintError(`Errore di stampa (${failedLabels || 'stampante'}) per l'ordine n. ${formatOrderNumber(order)}. L'ordine è salvato.`);
   } else {
     hidePrintError();
-    toast(`Ordine n. ${formatOrderNumber(order.number)} stampato`);
+    toast(`Ordine n. ${formatOrderNumber(order)} stampato`);
   }
 }
 
@@ -623,7 +624,7 @@ async function renderOrders() {
     const row = document.createElement('div');
     row.className = 'order-row';
     row.innerHTML = `
-      <span class="num">N. ${formatOrderNumber(o.number)}</span>
+      <span class="num">N. ${formatOrderNumber(o)}</span>
       ${o.discNumber ? `<span class="disc">🔔 ${o.discNumber}</span>` : ''}
       <span class="time">${time}</span>
       <span class="count">${count} pezzi</span>
@@ -635,7 +636,7 @@ async function renderOrders() {
 }
 
 function showOrderDetail(order) {
-  $('order-detail-title').textContent = `Ordine N. ${formatOrderNumber(order.number)}`
+  $('order-detail-title').textContent = `Ordine N. ${formatOrderNumber(order)}`
     + (order.discNumber ? ` — Dischetto ${order.discNumber}` : '');
   $('order-detail-body').innerHTML = `<pre>${layoutToText(orderTicketLayout(order))}</pre>`;
   $('modal-order').classList.remove('hidden');
@@ -715,7 +716,7 @@ $('btn-export-csv').addEventListener('click', async () => {
   for (const o of [...orders].sort((a, b) => a.number - b.number)) {
     for (const line of o.items) {
       rows.push([
-        formatOrderNumber(o.number), o.discNumber || '', o.createdAt, `"${line.name}"`, `"${customizationSummary(line.customization)}"`,
+        formatOrderNumber(o), o.discNumber || '', o.createdAt, `"${line.name}"`, `"${customizationSummary(line.customization)}"`,
         line.qty, line.unitPrice.toFixed(2), line.lineTotal.toFixed(2), o.total.toFixed(2)
       ]);
     }
@@ -743,6 +744,7 @@ $('btn-print-report').addEventListener('click', async () => {
 // ---------- settings ----------
 
 function renderSettings() {
+  $('set-tablet-label').value = settings.tabletLabel || '';
   $('set-change-calc').checked = settings.changeCalc;
   $('set-copies').value = String(settings.copies);
   $('set-event-mode').checked = settings.eventMode;
@@ -756,6 +758,11 @@ async function updateSetting(key, value) {
   renderMenu();
 }
 
+$('set-tablet-label').addEventListener('change', e => {
+  const label = e.target.value.trim().toUpperCase().slice(0, 3);
+  e.target.value = label;
+  updateSetting('tabletLabel', label);
+});
 $('set-change-calc').addEventListener('change', e => updateSetting('changeCalc', e.target.checked));
 $('set-copies').addEventListener('change', e => updateSetting('copies', parseInt(e.target.value, 10)));
 $('set-event-mode').addEventListener('change', e => updateSetting('eventMode', e.target.checked));

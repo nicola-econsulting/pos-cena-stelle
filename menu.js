@@ -33,15 +33,15 @@ const MENU = {
       { "key": "bond_burger", "name": "Bond Burger", "price": 8.00,
         "ingredients": ["Cipolla Caramellata", "Cavolo Cappuccio Viola", "Cheddar"] },
       { "key": "hot_dog", "name": "Hot Dog", "price": 6.00, "ingredients": [] },
-      { "key": "cicchetto_mare", "name": "Cicchetto di Mare", "price": 3.00, "ingredients": [] }
+      { "key": "cicchetto_mare", "name": "Cicchetto di Mare", "price": 3.00, "ingredients": [] },
+      { "key": "patatine_fritte", "name": "Patatine Fritte", "price": 3.00, "ingredients": [] }
     ]},
     { "name": "Piatti", "receiptTarget": "kitchen", "items": [
       { "key": "maccheroni_anitra", "name": "Maccheroni all'Anitra", "price": 8.00 },
       { "key": "pasta_bianco", "name": "Pasta in Bianco", "price": 5.00 },
       { "key": "pasta_pomodoro", "name": "Pasta al Pomodoro", "price": 6.00 },
       { "key": "trippe_pane", "name": "Trippe più Pane", "price": 9.00 },
-      { "key": "baccala_polenta", "name": "Baccalà e Polenta", "price": 15.00 },
-      { "key": "patatine_fritte", "name": "Patatine Fritte", "price": 3.00 },
+      { "key": "baccala_polenta", "name": "Baccalà e Polenta", "price": 14.00 },
       { "key": "fritella", "name": "Fritella", "price": 3.00 },
       { "key": "fritella_nutella", "name": "Fritella alla Nutella", "price": 3.50 },
       { "key": "torta_moia", "name": "Torta Moia", "price": 2.00 }

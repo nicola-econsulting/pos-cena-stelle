@@ -78,6 +78,18 @@ function customizationLines(cz) {
   return lines;
 }
 
+// Total paid + cash/change, shared by every customer-facing ticket (the
+// register's kitchen-copy, drinks, dolci) so whichever piece the customer
+// ends up holding shows what they actually paid for the whole order.
+function totalLines(order) {
+  const L = [{ text: padLine('TOTALE', '€ ' + money(order.total), COLS_DOUBLE), double: true, bold: true }];
+  if (order.cashReceived != null) {
+    L.push({ text: padLine('Contanti', money(order.cashReceived)) });
+    L.push({ text: padLine('Resto', money(order.changeDue)) });
+  }
+  return L;
+}
+
 // --- layout builders ---
 // op: { text, center: bool, double: bool, bold: bool }
 
@@ -94,11 +106,7 @@ function orderTicketLayout(order) {
     for (const line of customizationLines(it.customization)) L.push({ text: line });
   }
   L.push({ text: hr() });
-  L.push({ text: padLine('TOTALE', '€ ' + money(order.total), COLS_DOUBLE), double: true, bold: true });
-  if (order.cashReceived != null) {
-    L.push({ text: padLine('Contanti', money(order.cashReceived)) });
-    L.push({ text: padLine('Resto', money(order.changeDue)) });
-  }
+  L.push(...totalLines(order));
   L.push({ text: hr() });
   L.push({ text: '>> RITIRA AL BAR <<', center: true, bold: true });
   L.push({ text: 'Grazie!', center: true });
@@ -106,11 +114,13 @@ function orderTicketLayout(order) {
   return L;
 }
 
-// Kitchen ticket: food items only, with the disc number and any customizations.
-// No prices/total — this is a kitchen slip, not a customer receipt.
-// `isCopy` = the register's own backup copy (kept for dispute records, see
-// buildReceiptJobs in app.js): same items and disc number for reference, but
-// no "CHIAMARE N. X" call-out banner — that's an instruction for whoever's
+// Kitchen ticket: food items with the disc number and any customizations.
+// The real kitchen slip (isCopy=false) skips prices/total — it's for cooking,
+// not billing. `isCopy` = the register's own backup copy (kept for dispute
+// records, see buildReceiptJobs in app.js) and effectively the customer's
+// receipt for food: it shows per-item prices and the order's TOTALE (see
+// totalLines) so it also works as a customer receipt, and skips the
+// "CHIAMARE N. X" call-out banner — that's an instruction for whoever's
 // working the kitchen pickup counter, not something the cassa copy needs.
 function kitchenTicketLayout(order, items, isCopy) {
   const L = [];
@@ -125,18 +135,22 @@ function kitchenTicketLayout(order, items, isCopy) {
   L.push({ text: formatDateTime(order.createdAt), center: true });
   L.push({ text: hr() });
   for (const it of items) {
-    L.push({ text: `${it.qty}x ${it.name}`, bold: true });
+    L.push({ text: isCopy ? padLine(`${it.qty}x ${it.name}`, money(it.lineTotal)) : `${it.qty}x ${it.name}`, bold: !isCopy });
     for (const line of customizationLines(it.customization)) L.push({ text: line });
   }
   L.push({ text: hr() });
-  if (!isCopy) {
+  if (isCopy) {
+    L.push(...totalLines(order));
+    L.push({ text: hr() });
+  } else {
     L.push({ text: `>> CHIAMARE N. ${order.discNumber || '?'} <<`, center: true, bold: true });
   }
   return L;
 }
 
-// Station ticket (drinks or dolci): item list + line totals, no disc number,
-// no kitchen-style customization notes (these categories aren't customizable).
+// Station ticket (drinks or dolci): item list + line totals + order TOTALE
+// (customer's receipt for these items), no disc number, no kitchen-style
+// customization notes (these categories aren't customizable).
 function stationTicketLayout(order, items, title) {
   const L = [];
   L.push({ text: MENU.event.toUpperCase(), center: true, bold: true });
@@ -149,6 +163,8 @@ function stationTicketLayout(order, items, title) {
   for (const it of items) {
     L.push({ text: padLine(`${it.qty}x ${it.name}`, money(it.lineTotal)) });
   }
+  L.push({ text: hr() });
+  L.push(...totalLines(order));
   L.push({ text: hr() });
   return L;
 }

@@ -3,6 +3,7 @@
 
 let settings = null;
 let cart = [];            // [{ lineId, itemKey, name, unitPrice, qty, customization }]
+let toGo = false;         // "Da asporto" toggle for the order currently in the cart
 let lastFailedOrderId = null;
 let settingsUnlocked = false;
 
@@ -406,12 +407,18 @@ function renderCart() {
   }
   $('cart-total').textContent = fmtEuro(cartTotal());
   $('btn-stampa').disabled = !cart.length;
+  $('btn-togo').classList.toggle('active', toGo);
 }
+
+$('btn-togo').addEventListener('click', () => {
+  toGo = !toGo;
+  renderCart();
+});
 
 $('btn-annulla').addEventListener('click', async () => {
   if (!cart.length) return;
   const ok = await askConfirm('Annulla ordine', 'Svuotare l\'ordine corrente?');
-  if (ok) { cart = []; renderCart(); }
+  if (ok) { cart = []; toGo = false; renderCart(); }
 });
 
 // ---------- payment modal ----------
@@ -484,6 +491,7 @@ async function completeOrder() {
       id: Date.now() + '-' + number,
       number,
       tabletLabel: settings.tabletLabel || '',
+      toGo,
       discNumber: needsDisc ? discNumber : null,
       createdAt: new Date().toISOString(),
       total,
@@ -502,6 +510,7 @@ async function completeOrder() {
 
     $('modal-payment').classList.add('hidden');
     cart = [];
+    toGo = false;
     renderCart();
 
     await printOrderReceipts(order, false);
@@ -625,6 +634,7 @@ async function renderOrders() {
     row.className = 'order-row';
     row.innerHTML = `
       <span class="num">N. ${formatOrderNumber(o)}</span>
+      ${o.toGo ? '<span class="disc">🥡 asporto</span>' : ''}
       ${o.discNumber ? `<span class="disc">🔔 ${o.discNumber}</span>` : ''}
       <span class="time">${time}</span>
       <span class="count">${count} pezzi</span>

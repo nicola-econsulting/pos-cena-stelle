@@ -86,6 +86,7 @@ function orderTicketLayout(order) {
   L.push({ text: MENU.event.toUpperCase(), center: true, bold: true });
   L.push({ text: hr() });
   L.push({ text: `COMANDA N. ${formatOrderNumber(order)}`, center: true, double: true });
+  if (order.toGo) L.push({ text: '>> DA ASPORTO <<', center: true, bold: true });
   L.push({ text: formatDateTime(order.createdAt), center: true });
   L.push({ text: hr() });
   for (const it of order.items) {
@@ -116,6 +117,7 @@ function kitchenTicketLayout(order, items, isCopy) {
   L.push({ text: MENU.event.toUpperCase(), center: true, bold: true });
   L.push({ text: hr() });
   L.push({ text: isCopy ? 'CUCINA (copia cassa)' : 'CUCINA', center: true, bold: true });
+  if (order.toGo) L.push({ text: '>> DA ASPORTO <<', center: true, bold: true });
   // The disc number is whatever the cashier read off the physical disc
   // handed to the customer — print it verbatim, no zero-padding/reformatting,
   // so it matches the disc exactly.
@@ -140,6 +142,7 @@ function stationTicketLayout(order, items, title) {
   L.push({ text: MENU.event.toUpperCase(), center: true, bold: true });
   L.push({ text: hr() });
   L.push({ text: title, center: true, bold: true });
+  if (order.toGo) L.push({ text: '>> DA ASPORTO <<', center: true, bold: true });
   L.push({ text: `ORDINE N. ${formatOrderNumber(order)}`, center: true });
   L.push({ text: formatDateTime(order.createdAt), center: true });
   L.push({ text: hr() });

@@ -233,6 +233,9 @@ main { flex: 1; overflow: hidden; position: relative; }
 #cart-actions .btn { flex: 1; min-height: 62px; font-size: 20px; }
 #btn-stampa { flex: 2; }
 
+.btn-toggle { width: 100%; margin-bottom: 12px; }
+.btn-toggle.active { background: var(--accent); border-color: var(--accent); color: var(--ink); }
+
 /* ---------- buttons ---------- */
 
 .btn {

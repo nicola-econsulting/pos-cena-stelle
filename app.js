@@ -17,8 +17,8 @@ const $ = id => document.getElementById(id);
 
 const ITEM_INDEX = {};
 
-function indexItem(item, categoryName, receiptTarget, customizableType, ingredients, addons) {
-  ITEM_INDEX[item.key] = { item, categoryName, receiptTarget, customizableType, ingredients: ingredients || null, addons: addons || null };
+function indexItem(item, categoryName, receiptTarget, customizableType, ingredients, addons, kitchenStation) {
+  ITEM_INDEX[item.key] = { item, categoryName, receiptTarget, customizableType, ingredients: ingredients || null, addons: addons || null, kitchenStation: kitchenStation || 'cucina' };
 }
 
 // Rebuilds the flat lookup from MENU.categories — called at load, and again
@@ -37,19 +37,19 @@ function rebuildItemIndex() {
         // Custom items added from Impostazioni into a 'burger'-type category
         // (see applyCustomItems) have no `ingredients` of their own — treat
         // them as addon-only, same as Patatine Fritte, instead of crashing.
-        indexItem(item, cat.name, cat.receiptTarget, type, type === 'burger' ? (item.ingredients || []) : null, addons);
+        indexItem(item, cat.name, cat.receiptTarget, type, type === 'burger' ? (item.ingredients || []) : null, addons, cat.kitchenStation || item.kitchenStation);
       }
     }
     if (cat.subcategories) {
       for (const sub of cat.subcategories) {
         for (const item of sub.items) {
           const type = item.customizable || null;
-          indexItem(item, `${cat.name} — ${sub.name}`, cat.receiptTarget, type, null, null);
+          indexItem(item, `${cat.name} — ${sub.name}`, cat.receiptTarget, type, null, null, cat.kitchenStation || item.kitchenStation);
         }
       }
     }
   }
-  indexItem(MENU.ticketBirra, 'Ticket Birra', MENU.ticketBirra.receiptTarget, null, null, null);
+  indexItem(MENU.ticketBirra, 'Ticket Birra', MENU.ticketBirra.receiptTarget, null, null, null, null);
 }
 rebuildItemIndex();
 
@@ -517,7 +517,8 @@ async function completeOrder() {
         itemKey: l.itemKey, name: l.name, unitPrice: l.unitPrice,
         qty: l.qty, lineTotal: +(l.unitPrice * l.qty).toFixed(2),
         customization: l.customization || null,
-        receiptTarget: ITEM_INDEX[l.itemKey].receiptTarget
+        receiptTarget: ITEM_INDEX[l.itemKey].receiptTarget,
+        kitchenStation: ITEM_INDEX[l.itemKey].kitchenStation
       }))
     };
     await saveOrder(order);
@@ -553,7 +554,18 @@ function buildReceiptJobs(order) {
 
   const jobs = [];
   if (byTarget.kitchen.length) {
-    jobs.push({ target: 'kitchen', role: RECEIPT_ROLE.kitchen, layout: kitchenTicketLayout(order, byTarget.kitchen), label: 'comanda cucina' });
+    // Griglia (burger/hot dog) cooks on a different timeline than the rest
+    // of kitchen, so it gets its own ticket instead of one mixed slip — see
+    // kitchenStation in menu.js. Same disc number on both; only the real
+    // kitchen tickets split, the cassa copy stays one combined record.
+    const griglia = byTarget.kitchen.filter(it => it.kitchenStation === 'griglia');
+    const cucina = byTarget.kitchen.filter(it => it.kitchenStation !== 'griglia');
+    if (griglia.length) {
+      jobs.push({ target: 'kitchenGriglia', role: RECEIPT_ROLE.kitchen, layout: kitchenTicketLayout(order, griglia, false, 'GRIGLIA'), label: 'comanda griglia' });
+    }
+    if (cucina.length) {
+      jobs.push({ target: 'kitchenCucina', role: RECEIPT_ROLE.kitchen, layout: kitchenTicketLayout(order, cucina, false, 'CUCINA'), label: 'comanda cucina' });
+    }
     jobs.push({ target: 'kitchenCopy', role: RECEIPT_ROLE.kitchenCopy, layout: kitchenTicketLayout(order, byTarget.kitchen, true), label: 'copia comanda cucina (cassa)' });
   }
   if (byTarget.drinks.length) {
@@ -959,7 +971,7 @@ document.querySelectorAll('.btn-reconnect').forEach(btn => {
     const role = btn.dataset.role;
     if (!Printer.available) { toast('Bluetooth/USB non disponibili in questo browser'); return; }
     try {
-      await Printer.reconnect(role, settings.printerDevices[role]);
+      await Printer.reconnect(role, settings.printerDevices[role], settings.bleNameFilter);
       hidePrintError();
       toast('Stampante connessa');
     } catch (e) {

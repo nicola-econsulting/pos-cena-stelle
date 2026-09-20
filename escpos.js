@@ -126,11 +126,15 @@ function orderTicketLayout(order) {
 // totalLines) so it also works as a customer receipt, and skips the
 // "CHIAMARE N. X" call-out banner — that's an instruction for whoever's
 // working the kitchen pickup counter, not something the cassa copy needs.
-function kitchenTicketLayout(order, items, isCopy) {
+// `stationLabel` ('GRIGLIA' or 'CUCINA') names which station this slip is
+// for when the kitchen ticket is split by kitchenStation (see
+// buildReceiptJobs) — printed double-width so it's unmistakable at a glance
+// which pile a ticket belongs on.
+function kitchenTicketLayout(order, items, isCopy, stationLabel) {
   const L = [];
   L.push({ text: MENU.event.toUpperCase(), center: true, bold: true });
   L.push({ text: hr() });
-  L.push({ text: isCopy ? 'CUCINA (copia cassa)' : 'CUCINA', center: true, bold: true });
+  L.push({ text: isCopy ? 'CUCINA (copia cassa)' : (stationLabel || 'CUCINA'), center: true, bold: true, double: !isCopy });
   if (order.toGo) L.push({ text: '>> DA ASPORTO <<', center: true, bold: true });
   // The disc number is whatever the cashier read off the physical disc
   // handed to the customer — print it verbatim, no zero-padding/reformatting,

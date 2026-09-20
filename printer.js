@@ -160,8 +160,9 @@ const Printer = {
 
   // Reconnect one role: in-memory device → remembered device (by transport) → picker.
   // `knownId` is the remembered "ble:..."/"usb:..." string from settings, so we
-  // know which transport to search/open the picker for.
-  async reconnect(role, knownId) {
+  // know which transport to search/open the picker for. `nameFilter` is only
+  // used if this falls all the way through to the BLE picker.
+  async reconnect(role, knownId, nameFilter) {
     const s = this._state[role];
     if (s.device) {
       try {
@@ -190,7 +191,7 @@ const Printer = {
     }
 
     if (parsed && parsed.type === 'usb') await this.selectAndConnectUSB(role);
-    else await this.selectAndConnect(role);
+    else await this.selectAndConnect(role, nameFilter);
   },
 
   // Silent auto-reconnect on app launch (no picker) for every role that has

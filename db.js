@@ -18,7 +18,13 @@ const DEFAULT_SETTINGS = {
   // Short per-tablet prefix (e.g. "A", "B"), prepended to order numbers so
   // two tablets — each with their own independent counter — never print the
   // same order number. Empty by default (single-tablet setups don't need it).
-  tabletLabel: ''
+  tabletLabel: '',
+  // Narrows the Bluetooth device picker (see Printer.selectAndConnect) to
+  // names starting with this text, so it doesn't list every nearby
+  // phone/headphone in a crowd. Defaults to "Printer" (matches these
+  // printers' advertised names); clear it in Impostazioni to see everything
+  // again if a printer's actual name doesn't start with this.
+  bleNameFilter: 'Printer'
 };
 
 let _db = null;

@@ -123,14 +123,18 @@ const Printer = {
     }
   },
 
-  // Show the Bluetooth device picker and connect for a given role
-  async selectAndConnect(role) {
+  // Show the Bluetooth device picker and connect for a given role.
+  // `nameFilter` (from settings.bleNameFilter, set in Impostazioni) narrows
+  // the picker to devices whose advertised name starts with it — useful in
+  // a crowd where the unfiltered picker can show 100+ nearby BLE devices.
+  // Left empty, it falls back to showing everything (today's default).
+  async selectAndConnect(role, nameFilter) {
     let device;
+    const requestOptions = nameFilter
+      ? { filters: [{ namePrefix: nameFilter }], optionalServices: PRINTER_SERVICES }
+      : { acceptAllDevices: true, optionalServices: PRINTER_SERVICES };
     try {
-      device = await navigator.bluetooth.requestDevice({
-        acceptAllDevices: true,
-        optionalServices: PRINTER_SERVICES
-      });
+      device = await navigator.bluetooth.requestDevice(requestOptions);
     } catch (e) {
       if (e && e.name === 'NotFoundError') throw e;   // user cancelled the picker
       throw new Error(bleErrorText(e, 'Selezione dispositivo fallita'));

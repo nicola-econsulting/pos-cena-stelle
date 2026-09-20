@@ -769,6 +769,7 @@ $('btn-print-report').addEventListener('click', async () => {
 
 function renderSettings() {
   $('set-tablet-label').value = settings.tabletLabel || '';
+  $('set-ble-filter').value = settings.bleNameFilter || '';
   $('set-change-calc').checked = settings.changeCalc;
   $('set-copies').value = String(settings.copies);
   $('set-event-mode').checked = settings.eventMode;
@@ -786,6 +787,12 @@ $('set-tablet-label').addEventListener('change', e => {
   const label = e.target.value.trim().toUpperCase().slice(0, 3);
   e.target.value = label;
   updateSetting('tabletLabel', label);
+});
+
+$('set-ble-filter').addEventListener('change', e => {
+  const filter = e.target.value.trim();
+  e.target.value = filter;
+  updateSetting('bleNameFilter', filter);
 });
 $('set-change-calc').addEventListener('change', e => updateSetting('changeCalc', e.target.checked));
 $('set-copies').addEventListener('change', e => updateSetting('copies', parseInt(e.target.value, 10)));
@@ -860,7 +867,7 @@ document.querySelectorAll('.btn-select-printer').forEach(btn => {
     if (conn === 'ble' && !Printer.availableBLE) { toast('Bluetooth non disponibile: uso stampa browser'); return; }
     try {
       if (conn === 'usb') await Printer.selectAndConnectUSB(role);
-      else await Printer.selectAndConnect(role);
+      else await Printer.selectAndConnect(role, settings.bleNameFilter);
       hidePrintError();
       toast('Stampante connessa');
     } catch (e) {

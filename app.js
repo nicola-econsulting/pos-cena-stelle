@@ -17,8 +17,8 @@ const $ = id => document.getElementById(id);
 
 const ITEM_INDEX = {};
 
-function indexItem(item, categoryName, receiptTarget, customizableType, ingredients) {
-  ITEM_INDEX[item.key] = { item, categoryName, receiptTarget, customizableType, ingredients: ingredients || null };
+function indexItem(item, categoryName, receiptTarget, customizableType, ingredients, addons) {
+  ITEM_INDEX[item.key] = { item, categoryName, receiptTarget, customizableType, ingredients: ingredients || null, addons: addons || null };
 }
 
 // Rebuilds the flat lookup from MENU.categories — called at load, and again
@@ -29,19 +29,27 @@ function rebuildItemIndex() {
     if (cat.items) {
       for (const item of cat.items) {
         const type = cat.customizable || item.customizable || null;
-        indexItem(item, cat.name, cat.receiptTarget, type, type === 'burger' ? item.ingredients : null);
+        // Add-on list: item's own override, else the category's, else the
+        // default Maionese/Ketchup set (see BURGER_ADDONS in menu.js) — lets
+        // one item in a shared category (e.g. Bond Burger's Peperoni) offer
+        // extra add-ons without changing the rest of the category.
+        const addons = type === 'burger' ? (item.addons || cat.addons || BURGER_ADDONS) : null;
+        // Custom items added from Impostazioni into a 'burger'-type category
+        // (see applyCustomItems) have no `ingredients` of their own — treat
+        // them as addon-only, same as Patatine Fritte, instead of crashing.
+        indexItem(item, cat.name, cat.receiptTarget, type, type === 'burger' ? (item.ingredients || []) : null, addons);
       }
     }
     if (cat.subcategories) {
       for (const sub of cat.subcategories) {
         for (const item of sub.items) {
           const type = item.customizable || null;
-          indexItem(item, `${cat.name} — ${sub.name}`, cat.receiptTarget, type, null);
+          indexItem(item, `${cat.name} — ${sub.name}`, cat.receiptTarget, type, null, null);
         }
       }
     }
   }
-  indexItem(MENU.ticketBirra, 'Ticket Birra', MENU.ticketBirra.receiptTarget, null);
+  indexItem(MENU.ticketBirra, 'Ticket Birra', MENU.ticketBirra.receiptTarget, null, null, null);
 }
 rebuildItemIndex();
 
@@ -238,13 +246,15 @@ function openCustomizeBurger(itemKey) {
   const body = $('customize-body');
   body.innerHTML = '';
 
-  const ingLabel = document.createElement('div');
-  ingLabel.className = 'customize-section-label';
-  ingLabel.textContent = 'Ingredienti (− per togliere)';
-  body.appendChild(ingLabel);
+  if (entry.ingredients.length) {
+    const ingLabel = document.createElement('div');
+    ingLabel.className = 'customize-section-label';
+    ingLabel.textContent = 'Ingredienti (− per togliere)';
+    body.appendChild(ingLabel);
 
-  for (const ing of entry.ingredients) {
-    body.appendChild(customizeToggleRow('ingredient', ing, true));
+    for (const ing of entry.ingredients) {
+      body.appendChild(customizeToggleRow('ingredient', ing, true));
+    }
   }
 
   const addonLabel = document.createElement('div');
@@ -252,7 +262,7 @@ function openCustomizeBurger(itemKey) {
   addonLabel.textContent = 'Aggiunte (+ per aggiungere)';
   body.appendChild(addonLabel);
 
-  for (const addon of BURGER_ADDONS) {
+  for (const addon of entry.addons) {
     body.appendChild(customizeToggleRow('addon', addon, false));
   }
 
@@ -437,6 +447,8 @@ $('btn-stampa').addEventListener('click', () => {
   $('pay-disc').classList.remove('field-invalid');
   $('pay-disc-error').classList.add('hidden');
   $('pay-disc-section').classList.toggle('hidden', !cartHasKitchenItems());
+  $('pay-note').value = '';
+  $('pay-note-section').classList.toggle('hidden', !cartHasKitchenItems());
   $('modal-payment').classList.remove('hidden');
 });
 
@@ -472,6 +484,7 @@ $('pay-confirm').addEventListener('click', completeOrder);
 async function completeOrder() {
   const needsDisc = cartHasKitchenItems();
   const discNumber = $('pay-disc').value.trim();
+  const kitchenNote = needsDisc ? $('pay-note').value.trim() : '';
   if (needsDisc && !discNumber) {
     $('pay-disc').classList.add('field-invalid');
     $('pay-disc-error').classList.remove('hidden');
@@ -493,6 +506,7 @@ async function completeOrder() {
       tabletLabel: settings.tabletLabel || '',
       toGo,
       discNumber: needsDisc ? discNumber : null,
+      kitchenNote: kitchenNote || null,
       createdAt: new Date().toISOString(),
       total,
       cashReceived,

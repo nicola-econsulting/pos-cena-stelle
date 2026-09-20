@@ -6,8 +6,10 @@
 // Item shape: { key, name, price }
 //   + classicBeer: true → hidden when settings.eventMode is on, replaced by the
 //     dedicated "Ticket Birra" button (see MENU.ticketBirra)
-//   + customizable: 'burger' → ingredients can be removed, allowed add-ons are BURGER_ADDONS
-//     ingredients: [...]        (required when customizable === 'burger')
+//   + customizable: 'burger' → ingredients can be removed, and add-ons can be added.
+//     ingredients: [...]        (required when customizable === 'burger'; [] if none removable)
+//     addons: [...]             (optional per-item override; falls back to
+//                                the category's `addons`, then BURGER_ADDONS)
 //   + customizable: 'fries'   → an optional sauce can be added, from FRIES_SAUCES
 
 const BURGER_ADDONS = ['Maionese', 'Ketchup'];
@@ -18,47 +20,43 @@ const MENU = {
   "currency": "€",
   "ticketBirra": { "key": "ticket_birra", "name": "Ticket Birra", "price": 4.00, "receiptTarget": "drinks" },
   "categories": [
-    // From "Nero Vintage Cibo Hamburger Street Food Menù" (2-page PDF).
-    // Bond Burger's "o" choice (cipolla caramellata O cavolo cappuccio viola)
-    // is modelled as: both listed as removable ingredients, so whichever one
-    // isn't wanted gets removed — the customization engine doesn't have a
-    // dedicated "choose one of two" type.
+    // Trimmed to today's event menu: Bond Burger, Hot Dog, Patatine Fritte.
     { "name": "Burger", "receiptTarget": "kitchen", "customizable": "burger", "items": [
-      { "key": "contra_burger", "name": "Contra'Burger", "price": 8.00,
-        "ingredients": ["Cipolla Caramellata", "Peperoni", "Cheddar"] },
-      { "key": "cheeseburger", "name": "Cheeseburger", "price": 7.00,
-        "ingredients": ["Pomodoro", "Insalata", "Cheddar"] },
-      { "key": "easy_burger", "name": "Easy Burger", "price": 6.00,
-        "ingredients": ["Pomodoro", "Insalata"] },
       { "key": "bond_burger", "name": "Bond Burger", "price": 8.00,
-        "ingredients": ["Cipolla Caramellata", "Cavolo Cappuccio Viola", "Cheddar"] },
+        "ingredients": ["Cipolla Caramellata", "Cavolo Cappuccio Viola", "Cheddar"],
+        "addons": ["Maionese", "Ketchup", "Peperoni"] },
       { "key": "hot_dog", "name": "Hot Dog", "price": 6.00, "ingredients": [] },
-      { "key": "cicchetto_mare", "name": "Cicchetto di Mare", "price": 3.00, "ingredients": [] },
       { "key": "patatine_fritte", "name": "Patatine Fritte", "price": 3.00, "ingredients": [] }
     ]},
+    // The 4 primi below get a free "Grana" add-on (no removable ingredients).
     { "name": "Piatti", "receiptTarget": "kitchen", "items": [
-      { "key": "maccheroni_anitra", "name": "Maccheroni all'Anitra", "price": 8.00 },
-      { "key": "pasta_bianco", "name": "Pasta in Bianco", "price": 5.00 },
-      { "key": "pasta_pomodoro", "name": "Pasta al Pomodoro", "price": 6.00 },
-      { "key": "trippe_pane", "name": "Trippe più Pane", "price": 9.00 },
-      { "key": "baccala_polenta", "name": "Baccalà e Polenta", "price": 14.00 },
-      { "key": "fritella", "name": "Fritella", "price": 3.00 },
-      { "key": "fritella_nutella", "name": "Fritella alla Nutella", "price": 3.50 },
-      { "key": "torta_moia", "name": "Torta Moia", "price": 2.00 }
+      { "key": "maccheroni_anitra", "name": "Maccheroni all'Anitra", "price": 8.00,
+        "customizable": "burger", "ingredients": [], "addons": ["Grana"] },
+      { "key": "pasta_bianco", "name": "Pasta in Bianco", "price": 5.00,
+        "customizable": "burger", "ingredients": [], "addons": ["Grana"] },
+      { "key": "pasta_pomodoro", "name": "Pasta al Pomodoro", "price": 6.00,
+        "customizable": "burger", "ingredients": [], "addons": ["Grana"] },
+      { "key": "trippe_pane", "name": "Trippe più Pane", "price": 9.00,
+        "customizable": "burger", "ingredients": [], "addons": ["Grana"] },
+      { "key": "baccala_polenta", "name": "Baccalà e Polenta", "price": 14.00 }
     ]},
     { "name": "Bibite", "receiptTarget": "drinks", "items": [
       { "key": "bibita_lattina", "name": "Bibite in Lattina", "price": 3.00 },
-      { "key": "birra", "name": "Birra", "price": 4.00, "classicBeer": true },
+      { "key": "birra", "name": "Birra", "price": 3.50, "classicBeer": true },
       { "key": "acqua", "name": "Acqua", "price": 1.00 },
       { "key": "bicchiere_vino", "name": "Bicchiere di Vino", "price": 1.50 },
+      { "key": "spritz_aperol", "name": "Spritz Aperol", "price": 4.00 },
+      { "key": "spritz_bianco", "name": "Spritz Bianco", "price": 2.50 },
       { "key": "caffe", "name": "Caffè", "price": 1.00 }
     ]},
     { "name": "Caraffe", "receiptTarget": "drinks", "items": [
-      { "key": "caraffa_birra", "name": "1 Litro Birra", "price": 10.00 },
-      { "key": "caraffa_vino", "name": "1 Litro Vino", "price": 8.00 }
+      { "key": "caraffa_birra", "name": "1 Litro Birra", "price": 12.00 },
+      { "key": "caraffa_vino", "name": "1 Litro Vino", "price": 7.00 }
     ]},
     { "name": "Dolci", "receiptTarget": "dolci", "items": [
-      { "key": "krapfen", "name": "Krapfen", "price": 2.00 }
+      { "key": "krapfen", "name": "Krapfen", "price": 2.00 },
+      { "key": "fritella", "name": "Fritella", "price": 3.00 },
+      { "key": "fritella_nutella", "name": "Fritella alla Nutella", "price": 3.50 }
     ]}
   ]
 };

@@ -101,6 +101,10 @@ function orderTicketLayout(order) {
   if (order.toGo) L.push({ text: '>> DA ASPORTO <<', center: true, bold: true });
   L.push({ text: formatDateTime(order.createdAt), center: true });
   L.push({ text: hr() });
+  if (order.kitchenNote) {
+    L.push({ text: `NOTA: ${order.kitchenNote}`, bold: true });
+    L.push({ text: hr() });
+  }
   for (const it of order.items) {
     L.push({ text: padLine(`${it.qty}x ${it.name}`, money(it.lineTotal)) });
     for (const line of customizationLines(it.customization)) L.push({ text: line });
@@ -134,6 +138,10 @@ function kitchenTicketLayout(order, items, isCopy) {
   L.push({ text: `DISCHETTO N. ${order.discNumber || '?'}`, center: true, double: true });
   L.push({ text: formatDateTime(order.createdAt), center: true });
   L.push({ text: hr() });
+  if (order.kitchenNote) {
+    L.push({ text: `NOTA: ${order.kitchenNote}`, bold: true });
+    L.push({ text: hr() });
+  }
   for (const it of items) {
     L.push({ text: isCopy ? padLine(`${it.qty}x ${it.name}`, money(it.lineTotal)) : `${it.qty}x ${it.name}`, bold: !isCopy });
     for (const line of customizationLines(it.customization)) L.push({ text: line });

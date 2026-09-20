@@ -486,7 +486,7 @@ main { flex: 1; overflow: hidden; position: relative; }
 }
 #pay-total { font-size: 40px; color: var(--accent); }
 
-#pay-cash-section label, #pay-disc-section label { display: block; font-size: 16px; color: var(--muted); margin-bottom: 6px; }
+#pay-cash-section label, #pay-disc-section label, #pay-note-section label { display: block; font-size: 16px; color: var(--muted); margin-bottom: 6px; }
 #pay-cash, #pay-disc, #confirm-pin {
   width: 100%;
   font-size: 26px;
@@ -500,6 +500,18 @@ main { flex: 1; overflow: hidden; position: relative; }
 }
 #pay-disc-section { margin-bottom: 16px; }
 #pay-disc.field-invalid { border-color: var(--danger); }
+#pay-note {
+  width: 100%;
+  font-size: 17px;
+  padding: 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--rule);
+  background: var(--panel-2);
+  color: var(--text);
+  font-family: var(--font-body);
+  resize: vertical;
+}
+#pay-note-section { margin-bottom: 16px; }
 .field-error { color: var(--danger); font-size: 15px; font-weight: 700; margin-top: -4px; margin-bottom: 10px; }
 #quick-cash { display: flex; gap: 8px; margin-bottom: 10px; }
 #quick-cash .btn { flex: 1; }
